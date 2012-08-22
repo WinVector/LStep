@@ -240,7 +240,8 @@ public final class ScoreStep {
 		/** 
 		 * R-plot
 		 * > d <- read.table('perp.tsv',sep='\t',header=T)
-		 * > ggplot(d) + geom_tile(aes(x=wC,y=wX,fill=increase),alpha=0.5)
+		 * > ggplot(d,aes(x=wC,y=wX,z=perplexity0,fill=perplexity0)) + geom_tile(alpha=0.5,binwidth=1) + scale_fill_gradient(low="green", high="red") + stat_contour(binwidth=1)
+		 * > ggplot(d,aes(x=wC,y=wX,z=increase,fill=increase)) + geom_tile(alpha=0.5)
 		 */
 	}
 	
