@@ -219,44 +219,38 @@ public final class ScoreStep {
 				false
 		};
 		final int dim = x[0].length;
-		final int nAngles = 20000;
-		final double r = 2.0;
-		double worstTheta = 0.0;
-		double maxRelDiff = 0.0;
-		for(int aStep=0;aStep<nAngles;++aStep) {
-			final double theta = 2.0*Math.PI*aStep/(double)nAngles;
-			final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-			wts.set(0,r*Math.cos(theta));
-			wts.set(1,r*Math.sin(theta));
-			final double perplexity0 = NewtonStep(x,y,true,wts);
-			final double perplexity1 = NewtonStep(x,y,false,wts);
-			if(perplexity1>perplexity0) {
-				final double relDiff = (perplexity1-perplexity0)/Math.max(1.0,perplexity0);
-				if(relDiff>maxRelDiff) {
-					maxRelDiff = relDiff;
-					worstTheta = theta;
-				}
+		final int nPts = 100;
+		final double r = 6.0;
+		final String sep = "\t";
+		System.out.println("" + "wC" + sep + "wX" + sep + "perplexity0" + sep + "perplexity1" + sep + "decrease" + sep + "increase");
+		for(int xi=-nPts;xi<=nPts;++xi) {
+			final double w0 = xi*r/((double)nPts);
+			for(int yi=-nPts;yi<=nPts;++yi) {
+				final double w1 = yi*r/((double)nPts);
+				final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
+				wts.set(0,w0);
+				wts.set(1,w1);
+				final double perplexity0 = NewtonStep(x,y,true,wts);
+				final double perplexity1 = NewtonStep(x,y,false,wts);
+				final boolean decrease = perplexity1<perplexity0;
+				final boolean increase = perplexity1>perplexity0;
+				System.out.println("" + w0 + sep + w1 + sep + perplexity0 + sep + perplexity1 + sep + decrease + sep + increase);
 			}
 		}
-		System.out.println("worst theta: " + worstTheta);
-		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-		wts.set(0,r*Math.cos(worstTheta));
-		wts.set(1,r*Math.sin(worstTheta));
-		System.out.println("w0: " + wts);
-		final double perplexity0 = NewtonStep(x,y,true,wts);
-		System.out.println("w1: " + wts);
-		final double perplexity1 = NewtonStep(x,y,false,wts);
-		System.out.println("perplexity0(" + r + "," + worstTheta + "): " + perplexity0);
-		System.out.println("perplexity1(" + r + "," + worstTheta + "): " + perplexity1);
+		/** 
+		 * R-plot
+		 * > d <- read.table('perp.tsv',sep='\t',header=T)
+		 * > ggplot(d) + geom_tile(aes(x=wC,y=wX,fill=increase),alpha=0.5)
+		 */
 	}
 	
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		System.out.println("showing correctnes:");
-		showCorrectness();
-		System.out.println("showing problem:");
+		//System.out.println("showing correctnes:");
+		//showCorrectness();
+		//System.out.println("showing problem:");
 		showProblem();
 	}
 
