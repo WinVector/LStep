@@ -6,6 +6,13 @@ import cern.colt.matrix.impl.DenseDoubleMatrix1D;
 import cern.colt.matrix.impl.DenseDoubleMatrix2D;
 import cern.colt.matrix.linalg.Algebra;
 
+
+/**
+ * quick demonstration of Newton-Raphson divergence on logistic regression based on a quick implementation of
+ * http://www.win-vector.com/blog/2011/09/the-simpler-derivation-of-logistic-regression/
+ * @author johnmount
+ *
+ */
 public final class ScoreStep {
 
 	private static double dot(final DoubleMatrix1D a, final double[] b) {
