@@ -3,7 +3,9 @@ Trivial implementation of:
 
 Used to demonstrate divergence of Newton-Raphson step when solving a logistic regression.
 
-Depends on COLT library: http://acs.lbl.gov/software/colt/
+Depends on:
+ COLT library: http://acs.lbl.gov/software/colt/
+ Junit: http://www.junit.org
 
 In support the following article:
    http://www.win-vector.com/blog/2012/08/how-robust-is-logistic-regression/   
