@@ -274,34 +274,36 @@ public final class ScoreStep {
 		final double[][] x = { 
 				{ 1, 0},
 				{ 1, 0},
-				{ 1, .01},
-				{ 1, .01},
+				{ 1, .001},
+				{ 1, .001},
 				{ 1, 1},
 				{ 1, 1},
 				{ 1, 100},
 				{ 1, 100},
+				{ 1, -.001},
+				{ 1, -.001},
+				{ 1, -1},
+				{ 1, -1},
+				{ 1, -100},
+				{ 1, -100},
 		};
-		final boolean[] y = {
-				true,
-				false,
-				true,
-				false,
-				true,
-				false,
-				true,
-				false,
-		};
-		final Random rand = new Random(32535);
 		final int ndat = x.length;
 		final int dim = x[0].length;
+		final boolean[] y = new boolean[ndat];
+		for(int i=1;i<ndat;i+=2) {
+			y[i] = true;
+		}
+		final Random rand = new Random(32535);
 		final int[] wt = new int[ndat];
-		for(int trial=0;trial<10000000;++trial) {
+		for(int trial=0;trial<1000000;++trial) {
 			for(int j=0;j<ndat;++j) {
-				wt[j] = rand.nextInt(10);
+				wt[j] = rand.nextInt(100) - 50;
 			}
 			final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 			final double perplexity0 = perplexity(x,y,wt,wts);
-			NewtonStep(x,y,wt,wts);
+			for(int ns=0;ns<5;++ns) {
+				NewtonStep(x,y,wt,wts);
+			}
 			final double perplexity1 = perplexity(x,y,wt,wts);
 			if(perplexity1>perplexity0) {
 				System.out.println("break");
@@ -316,8 +318,8 @@ public final class ScoreStep {
 		//System.out.println("showing correctnes:");
 		//showCorrectness();
 		//System.out.println("showing problem:");
-		showProblem();
-		//searchForProblem();
+		//showProblem();
+		searchForProblem();
 	}
 
 }
