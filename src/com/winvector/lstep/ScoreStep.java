@@ -1,5 +1,7 @@
 package com.winvector.lstep;
 
+import java.util.Random;
+
 import cern.colt.matrix.DoubleMatrix1D;
 import cern.colt.matrix.DoubleMatrix2D;
 import cern.colt.matrix.impl.DenseDoubleMatrix1D;
@@ -28,43 +30,58 @@ public final class ScoreStep {
 		return 1.0/(1.0 + Math.exp(-x));
 	}
 	
+	private static final double perplexity(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts) {
+		final int nDat = x.length;
+		double perplexity = 0.0;
+		for(int i=0;i<nDat;++i) {
+			if((null==wt)||(wt[i]>0)) {
+				final double wti = wt==null?1.0:wt[i];
+				final double[] xi = x[i];
+				final double pi = sigmoid(dot(wts,xi));				
+				if(y[i]) {
+					perplexity -= wti*Math.log(pi);
+				} else {
+					perplexity -= wti*Math.log(1.0-pi);
+				}
+			}
+		}
+		return perplexity;
+	}
+	
 	/**
 	 * @param x
 	 * @param y
 	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
-	 * @param wts (altered if update is true)
-	 * @return perplexity of input wts
+	 * @param wt data weights (all > 0)
 	 */
-	private static final double NewtonStep(final double[][] x, final boolean[] y, final boolean update, final DoubleMatrix1D wts) {
+	private static final void NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts) {
 		final int nDat = x.length;
 		final int dim = x[0].length;
 		final DoubleMatrix2D m = new DenseDoubleMatrix2D(dim,dim);
 		final DoubleMatrix2D v = new DenseDoubleMatrix2D(dim,1);
-		double perplexity = 0.0;
 		for(int i=0;i<nDat;++i) {
-			final double[] xi = x[i];
-			final double pi = sigmoid(dot(wts,xi));
-			final double mwt = pi*(1.0-pi);
-			final double vwt = (y[i]?1.0:0.0) - pi;
-			if(y[i]) {
-				perplexity -= Math.log(pi);
-			} else {
-				perplexity -= Math.log(1.0-pi);
-			}
-			for(int j=0;j<dim;++j) {
-				v.set(j,0,v.get(j,0) + vwt*xi[j]);
-				for(int k=0;k<dim;++k) {
-					m.set(j,k,m.get(j,k) + mwt*xi[j]*xi[k]);
+			if((null==wt)||(wt[i]>0)) {
+				final double wti = wt==null?1.0:wt[i];
+				final double[] xi = x[i];
+				final double pi = sigmoid(dot(wts,xi));
+				final double mwt = pi*(1.0-pi);
+				final double vwt = (y[i]?1.0:0.0) - pi;
+				for(int j=0;j<dim;++j) {
+					v.set(j,0,v.get(j,0) + wti*vwt*xi[j]);
+					for(int k=0;k<dim;++k) {
+						m.set(j,k,m.get(j,k) + wti*mwt*xi[j]*xi[k]);
+					}
 				}
 			}
 		}
-		if(update) {
+		try {
 			final DoubleMatrix2D delta = Algebra.DEFAULT.solve(m, v);
 			for(int j=0;j<dim;++j) {
 				wts.set(j,wts.get(j)+delta.get(j,0));
 			}
+		} catch (Exception ex) {
+			// singular matrix
 		}
-		return perplexity;
 	}
 	
 	public static void showCorrectness() {
@@ -158,7 +175,7 @@ public final class ScoreStep {
 		final int dim = x[0].length;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		for(int step=0;step<10;++step) {
-			NewtonStep(x,y,true,wts);
+			NewtonStep(x,y,null,wts);
 		}
 		final double[] expect = { 0.2415,       0.7573,       0.3530 };
 		double maxAbsDiff = 0.0;
@@ -237,8 +254,9 @@ public final class ScoreStep {
 				final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 				wts.set(0,w0);
 				wts.set(1,w1);
-				final double perplexity0 = NewtonStep(x,y,true,wts);
-				final double perplexity1 = NewtonStep(x,y,false,wts);
+				final double perplexity0 = perplexity(x,y,null,wts);
+				NewtonStep(x,y,null,wts);
+				final double perplexity1 = perplexity(x,y,null,wts);
 				final boolean decrease = perplexity1<perplexity0;
 				final boolean increase = perplexity1>perplexity0;
 				System.out.println("" + w0 + sep + w1 + sep + perplexity0 + sep + perplexity1 + sep + decrease + sep + increase);
@@ -252,6 +270,45 @@ public final class ScoreStep {
 		 */
 	}
 	
+	public static void searchForProblem() {
+		final double[][] x = { 
+				{ 1, 0},
+				{ 1, 0},
+				{ 1, .01},
+				{ 1, .01},
+				{ 1, 1},
+				{ 1, 1},
+				{ 1, 100},
+				{ 1, 100},
+		};
+		final boolean[] y = {
+				true,
+				false,
+				true,
+				false,
+				true,
+				false,
+				true,
+				false,
+		};
+		final Random rand = new Random(32535);
+		final int ndat = x.length;
+		final int dim = x[0].length;
+		final int[] wt = new int[ndat];
+		for(int trial=0;trial<10000000;++trial) {
+			for(int j=0;j<ndat;++j) {
+				wt[j] = rand.nextInt(10);
+			}
+			final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
+			final double perplexity0 = perplexity(x,y,wt,wts);
+			NewtonStep(x,y,wt,wts);
+			final double perplexity1 = perplexity(x,y,wt,wts);
+			if(perplexity1>perplexity0) {
+				System.out.println("break");
+			}
+		}
+	}
+	
 	/**
 	 * @param args
 	 */
@@ -260,6 +317,7 @@ public final class ScoreStep {
 		//showCorrectness();
 		//System.out.println("showing problem:");
 		showProblem();
+		//searchForProblem();
 	}
 
 }
