@@ -133,7 +133,7 @@ public class TestLStep {
 		final int dim = x[0].length;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		for(int step=0;step<10;++step) {
-			ScoreStep.NewtonStep(x,y,null,wts);
+			ScoreStep.NewtonStep(x,y,null,wts, false);
 		}
 		final double[] expect = { 0.2415,       0.7573,       0.3530 };
 		for(int i=0;i<expect.length;++i) {

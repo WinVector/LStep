@@ -84,10 +84,11 @@ public final class ScoreStep {
 	/**
 	 * @param x
 	 * @param y
-	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
 	 * @param wt data weights (all > 0)
+	 * @param verbose TODO
+	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
 	 */
-	public static final void NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts) {
+	public static final void NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose) {
 		final int nDat = x.length;
 		final int dim = x[0].length;
 		final DoubleMatrix2D m = new DenseDoubleMatrix2D(dim,dim);
@@ -108,7 +109,14 @@ public final class ScoreStep {
 			}
 		}
 		try {
+			if(verbose) {
+				System.out.println("m:\n" + m);
+				System.out.println("v:\n" + v);
+			}
 			final DoubleMatrix2D delta = Algebra.DEFAULT.solve(m, v);
+			if(verbose) {
+				System.out.println("delta:\n" + delta);
+			}
 			for(int j=0;j<dim;++j) {
 				wts.set(j,wts.get(j)+delta.get(j,0));
 			}
@@ -188,7 +196,7 @@ public final class ScoreStep {
 				wts.set(0,w0);
 				wts.set(1,w1);
 				final double perplexity0 = perplexity(x,y,null,wts);
-				NewtonStep(x,y,null,wts);
+				NewtonStep(x,y,null,wts, false);
 				final double perplexity1 = perplexity(x,y,null,wts);
 				final boolean decrease = perplexity1<perplexity0;
 				final boolean increase = perplexity1>perplexity0;
@@ -248,7 +256,7 @@ public final class ScoreStep {
 				final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 				final double perplexity0 = perplexity(x,y,wt,wts);
 				for(int ns=0;ns<5;++ns) {
-					NewtonStep(x,y,wt,wts);
+					NewtonStep(x,y,wt,wts, false);
 					final double perplexity1 = perplexity(x,y,wt,wts);
 					if(perplexity1>perplexity0) {
 						// don't count perplexity of things too near start (they can be rounding error)
@@ -273,40 +281,111 @@ public final class ScoreStep {
 		}
 	}
 	
-	public static void workProblem() {
-		final double[][] x = { 
-				{ 1.0,	0.0},
-				{ 1.0,	0.0},
-				{1.0,	0.001},
-				{1.0,	100.0},
-				{1.0,	-1.0},
-				{1.0,	-1.0}
-		};
-		final boolean[] y = {
-				false,
-				true,
-				false,
-				false,
-				false,
-				true
-		};
-		final int[] wt = {
-				49,
-				1,
-				46,
-				1,
-				3,
-				9
-		};
+	private final double[][] x = { 
+			{ 1.0,	0.0},
+			{ 1.0,	0.0},
+			{1.0,	0.001},
+			{1.0,	100.0},
+			{1.0,	-1.0},
+			{1.0,	-1.0}
+	};
+	
+	private final boolean[] y = {
+			false,
+			true,
+			false,
+			false,
+			false,
+			true
+	};
+	
+	private final int[] wt = {
+			50,
+			1,
+			50,
+			1,
+			5,
+			10
+	};
+	/**
+	 * R version:
+	 * 	 * > d <- data.frame(x=c(0,0,0.001,100,-1,-1),y=c(F,T,F,F,F,T),wt=c(50,1,50,1,5,10))
+	 * > glm(y~x,data=d,family=binomial(link='logit'),weights=d$wt)
+	 * 
+	 * Call:  glm(formula = y ~ x, family = binomial(link = "logit"), data = d, 
+	 *     weights = d$wt)
+	 * 
+	 * Coefficients:
+	 * (Intercept)            x  
+	 *  -1.084e+15   -4.253e+13  
+	 * 
+	 * Degrees of Freedom: 5 Total (i.e. Null);  4 Residual
+	 * Null Deviance:	    72.95 
+	 * Residual Deviance: 793 	AIC: 797 
+	 * Warning message:
+	 * glm.fit: fitted probabilities numerically 0 or 1 occurred 
+	 * > glm(y~x,data=d,family=binomial(link='logit'),weights=d$wt,start=c(-4,-5))
+	 * 
+	 * Call:  glm(formula = y ~ x, family = binomial(link = "logit"), data = d, 
+	 *     weights = d$wt, start = c(-4, -5))
+	 * 
+	 * Coefficients:
+	 * (Intercept)            x  
+	 *      -4.603       -5.296  
+	 * 
+	 * Degrees of Freedom: 5 Total (i.e. Null);  4 Residual
+	 * Null Deviance:	    72.95 
+	 * Residual Deviance: 30.31 	AIC: 34.31 
+	 * Warning message:
+	 * glm.fit: fitted probabilities numerically 0 or 1 occurred 
+	 * > 
+	 * 
+	 */
+	
+	public void workProblem() {
 		final int dim = x[0].length;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		final double perplexity0 = perplexity(x,y,wt,wts);
-		for(int ns=0;ns<5;++ns) {
-			NewtonStep(x,y,wt,wts);
+		System.out.println("perplexity0: " + perplexity0);
+		for(int ns=0;ns<10;++ns) {
+			System.out.println();
+			NewtonStep(x,y,wt,wts, true);
+			System.out.println(wts);
 			final double perplexity1 = perplexity(x,y,wt,wts);
+			System.out.println("perplexity" + (ns+1) + ": " + perplexity1);
 			if(perplexity1>perplexity0) {
 				System.out.println("break");
 			}
+		}
+	}
+	
+	public void bruteSolve() {
+		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(2);
+		int nsteps = 100;
+		double best = Double.POSITIVE_INFINITY;
+		DoubleMatrix1D bestwts = null;
+		final double range = 10.0;
+		for(int xi=-nsteps;xi<=nsteps;++xi) {
+			wts.set(0,range*xi/((double)nsteps));
+			for(int yi=-nsteps;yi<=nsteps;++yi) {
+				wts.set(1,range*yi/((double)nsteps));
+				final double perplexity1 = perplexity(x,y,wt,wts);
+				if((bestwts==null)||(perplexity1<best)) {
+					best = perplexity1;
+					bestwts = wts.copy();
+				}
+			}
+		}
+		System.out.println("best start: " + bestwts + "\t" + best);
+		for(int i=0;i<wts.size();++i) {
+			wts.set(i,bestwts.get(i));
+		}
+		for(int ns=0;ns<5;++ns) {
+			NewtonStep(x,y,wt,wts, true);
+			System.out.println("wt:");
+			System.out.println(wts);
+			final double perplexity1 = perplexity(x,y,wt,wts);
+			System.out.println("perplexity" + (ns+1) + ": " + perplexity1);
 		}
 	}
 	
@@ -317,7 +396,8 @@ public final class ScoreStep {
 		//System.out.println("showing problem:");
 		//showProblem();
 		//searchForProblem();
-		workProblem();
+		new ScoreStep().workProblem();
+		new ScoreStep().bruteSolve();
 	}
 
 }
