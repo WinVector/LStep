@@ -232,14 +232,38 @@ public final class ScoreStep {
 			for(int j=0;j<ndat;++j) {
 				wt[j] = rand.nextInt(100) - 50;
 			}
-			final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-			final double perplexity0 = perplexity(x,y,wt,wts);
-			for(int ns=0;ns<5;++ns) {
-				NewtonStep(x,y,wt,wts);
-				final double perplexity1 = perplexity(x,y,wt,wts);
-				if(perplexity1>perplexity0) {
-					System.out.println("break");
-					perplexity(x,y,wt,wts);
+			// only run if we see positive weight on true and false (needed for bounded soln)
+			boolean sawTrue = false;
+			boolean sawFalse = false;
+			for(int i=0;i<ndat;++i) {
+				if(wt[i]>0) {
+					if(y[i]) {
+						sawTrue = true;
+					} else {
+						sawFalse = true;
+					}
+				}
+			}
+			if(sawTrue&&sawFalse) {
+				final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
+				final double perplexity0 = perplexity(x,y,wt,wts);
+				for(int ns=0;ns<5;++ns) {
+					NewtonStep(x,y,wt,wts);
+					final double perplexity1 = perplexity(x,y,wt,wts);
+					if(perplexity1>perplexity0) {
+						// don't count perplexity of things too near start (they can be rounding error)
+						boolean sawNZ = false;
+						for(int j=0;j<dim;++j) {
+							if(Math.abs(wts.get(j))>1.0e-3) {
+								sawNZ = true;
+								break;
+							}
+						}
+						if(sawNZ) {
+							System.out.println("break");
+							perplexity(x,y,wt,wts);
+						}
+					}
 				}
 			}
 		}
