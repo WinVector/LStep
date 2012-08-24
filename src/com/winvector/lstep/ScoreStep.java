@@ -232,7 +232,7 @@ public final class ScoreStep {
 			for(int j=0;j<ndat;++j) {
 				wt[j] = rand.nextInt(100) - 50;
 			}
-			// only run if we see positive weight on true and false (needed for bounded soln)
+			// only run if we see positive weight on true and false (necessary for bounded sol, but not sufficient as we have minus coefs)
 			boolean sawTrue = false;
 			boolean sawFalse = false;
 			for(int i=0;i<ndat;++i) {
@@ -260,11 +260,52 @@ public final class ScoreStep {
 							}
 						}
 						if(sawNZ) {
+							for(int i=0;i<ndat;++i) {
+								if(wt[i]>0) {
+									System.out.println("" + x[i][0] + "\t" + x[i][1] + "\t"+ y[i] + "\t" + wt[i]);
+								}
+							}
 							System.out.println("break");
-							perplexity(x,y,wt,wts);
 						}
 					}
 				}
+			}
+		}
+	}
+	
+	public static void workProblem() {
+		final double[][] x = { 
+				{ 1.0,	0.0},
+				{ 1.0,	0.0},
+				{1.0,	0.001},
+				{1.0,	100.0},
+				{1.0,	-1.0},
+				{1.0,	-1.0}
+		};
+		final boolean[] y = {
+				false,
+				true,
+				false,
+				false,
+				false,
+				true
+		};
+		final int[] wt = {
+				49,
+				1,
+				46,
+				1,
+				3,
+				9
+		};
+		final int dim = x[0].length;
+		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
+		final double perplexity0 = perplexity(x,y,wt,wts);
+		for(int ns=0;ns<5;++ns) {
+			NewtonStep(x,y,wt,wts);
+			final double perplexity1 = perplexity(x,y,wt,wts);
+			if(perplexity1>perplexity0) {
+				System.out.println("break");
 			}
 		}
 	}
@@ -275,7 +316,8 @@ public final class ScoreStep {
 	public static void main(String[] args) {
 		//System.out.println("showing problem:");
 		//showProblem();
-		searchForProblem();
+		//searchForProblem();
+		workProblem();
 	}
 
 }
