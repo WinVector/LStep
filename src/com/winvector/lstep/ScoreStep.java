@@ -46,9 +46,10 @@ public final class ScoreStep {
 
 	private static final double switchPt = 20.0;
 	private static final double fSwitch = Math.log1p(Math.exp(switchPt));
+	private static final double dSwitch = sigmoid(switchPt);
 	public static double log1pExp(final double x) {
-		if(x>switchPt) {
-			return fSwitch + sigmoid(x)*(x-switchPt); //2 term Taylor series from switch point
+		if(x>=switchPt) {
+			return fSwitch + dSwitch*(x-switchPt); //2 term Taylor series from switch point
 		}
 		return Math.log1p(Math.exp(x));
 	}
