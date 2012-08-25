@@ -32,14 +32,6 @@ public final class ScoreStep {
 		return 1.0/(1.0 + Math.exp(-x));
 	}
 	
-	private static final double switchPt = 100.0;
-	private static final double switchRat = Math.log1p(Math.exp(switchPt))/switchPt; 
-	public static double log1pExp(final double x) {
-		if(x>=switchPt) {
-			return x*switchRat;  
-		}
-		return Math.log1p(Math.exp(x));
-	}
 	
 	public static double sigmoid(final double x) {
 		if(x>0) {
@@ -51,7 +43,16 @@ public final class ScoreStep {
 			return 0.5;
 		}
 	}
-	
+
+	private static final double switchPt = 20.0;
+	private static final double fSwitch = Math.log1p(Math.exp(switchPt));
+	public static double log1pExp(final double x) {
+		if(x>switchPt) {
+			return fSwitch + sigmoid(x)*(x-switchPt); //2 term Taylor series from switch point
+		}
+		return Math.log1p(Math.exp(x));
+	}
+
 	public static double logSigmoid(final double x) {
 		if(x>0) {
 			return -log1pExp(-x);
