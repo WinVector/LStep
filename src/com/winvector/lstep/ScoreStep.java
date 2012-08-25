@@ -96,7 +96,7 @@ public final class ScoreStep {
 	 * @param x
 	 * @param y
 	 * @param wt data weights (all > 0)
-	 * @param verbose TODO
+	 * @param verbose print a lot
 	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
 	 */
 	public static final void NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose) {
