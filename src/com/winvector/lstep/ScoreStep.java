@@ -32,6 +32,15 @@ public final class ScoreStep {
 		return 1.0/(1.0 + Math.exp(-x));
 	}
 	
+	private static final double switchPt = 100.0;
+	private static final double switchRat = Math.log1p(Math.exp(switchPt))/switchPt; 
+	public static double log1pExp(final double x) {
+		if(x>=switchPt) {
+			return x*switchRat;  
+		}
+		return Math.log1p(Math.exp(x));
+	}
+	
 	public static double sigmoid(final double x) {
 		if(x>0) {
 			return 1.0/(1.0 + Math.exp(-x));
@@ -45,9 +54,9 @@ public final class ScoreStep {
 	
 	public static double logSigmoid(final double x) {
 		if(x>0) {
-			return -Math.log1p(Math.exp(-x));
+			return -log1pExp(-x);
 		} else if(x<0) {
-			return x - Math.log1p(Math.exp(x));
+			return x - log1pExp(x);
 		} else {
 			return ln0p5;
 		}
@@ -55,9 +64,9 @@ public final class ScoreStep {
 	
 	public static double logOneMinusSigmoid(final double x) {
 		if(x>0) {
-			return -x - Math.log1p(Math.exp(-x));
+			return -x - log1pExp(-x);
 		} else if(x<0) {
-			return -Math.log1p(Math.exp(x));
+			return -log1pExp(x);
 		} else {
 			return ln0p5;
 		}
