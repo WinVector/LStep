@@ -7,6 +7,7 @@ Depends on:
  COLT library: http://acs.lbl.gov/software/colt/
  Junit: http://www.junit.org
 
-In support the following article:
+In support the following articles:
    http://www.win-vector.com/blog/2012/08/how-robust-is-logistic-regression/   
+   http://www.win-vector.com/blog/2012/08/newton-raphson-can-compute-an-average/
 
