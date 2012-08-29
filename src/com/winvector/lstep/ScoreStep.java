@@ -12,6 +12,10 @@ import cern.colt.matrix.linalg.Algebra;
 /**
  * quick demonstration of Newton-Raphson divergence on logistic regression based on a quick implementation of
  * http://www.win-vector.com/blog/2011/09/the-simpler-derivation-of-logistic-regression/
+ * 
+ * used as basis for articles:
+ *   http://www.win-vector.com/blog/2012/08/how-robust-is-logistic-regression/
+ *   http://www.win-vector.com/blog/2012/08/newton-raphson-can-compute-an-average/
  * @author johnmount
  *
  */
@@ -137,78 +141,116 @@ public final class ScoreStep {
 	}
 	
 
-
+	// crummy model- but best soln at wts = 0
+	// acceptance region all inside -6<=|x|,|y|<=5
+	/**
+	 * example that gets R 2.15.0 to fail: 
+	 * > p <- data.frame(x=c(1,0,1,0),y=c(T,T,F,F))
+	 * > summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6)))
+	 * 
+	 *      * Call:
+	 * glm(formula = y ~ x, family = binomial(link = "logit"), data = p, 
+	 *     start = c(-4, 6))
+	 * 
+	 * perplexity Residuals: 
+	 *       1        2        3        4  
+	 *  0.9737   0.0000  -1.3958  -8.4904  
+	 * 
+	 * Coefficients:
+	 *               Estimate Std. Error   z value Pr(>|z|)    
+	 * (Intercept)  2.252e+15  4.745e+07  47452996   <2e-16 ***
+	 * x           -2.252e+15  4.745e+07 -47452996   <2e-16 ***
+	 * ---
+	 * Signif. codes:  0 Ô***Õ 0.001 Ô**Õ 0.01 Ô*Õ 0.05 Ô.Õ 0.1 Ô Õ 1 
+	 * 
+	 * (Dispersion parameter for binomial family taken to be 1)
+	 * 
+	 *     Null perplexity:  5.5452  on 3  degrees of freedom
+	 * Residual perplexity: 74.9836  on 2  degrees of freedom
+	 * AIC: 78.984
+	 * 
+	 * Number of Fisher Scoring iterations: 25
+	 * 
+	 * 
+	 * 
+	 * See also: http://andrewgelman.com/2011/05/whassup_with_gl/
+	 * 
+	 * articles pointing just to sep: 
+	 *   http://www2.sas.com/proceedings/forum2008/360-2008.pdf
+	 *   http://interstat.statjournals.net/YEAR/2011/articles/1110003.pdf
+	 *   http://www.ats.ucla.edu/stat/mult_pkg/faq/general/complete_separation_logit_models.htm
+	 * 
+	 * see also:
+	 * summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6),maxit=1))
+	 * summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6),maxit=2))
+	 */
+	static SimpleProblem zeroSolnProblem = new SimpleProblem(
+			new double[][] { 
+					{ 1, 1 },
+					{ 1, 0 },
+					{ 1, 1 },
+					{ 1, 0 }
+			},
+			new boolean[] {
+					true,
+					true,
+					false,
+					false
+			},
+			null
+			);
 	
-	public static void showProblem() {
-		/**
-		 * example that gets R 2.15.0 to fail: 
-		 * > p <- data.frame(x=c(1,0,1,0),y=c(T,T,F,F))
-		 * > summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6)))
-		 * 
-		 *      * Call:
-		 * glm(formula = y ~ x, family = binomial(link = "logit"), data = p, 
-		 *     start = c(-4, 6))
-		 * 
-		 * perplexity Residuals: 
-		 *       1        2        3        4  
-		 *  0.9737   0.0000  -1.3958  -8.4904  
-		 * 
-		 * Coefficients:
-		 *               Estimate Std. Error   z value Pr(>|z|)    
-		 * (Intercept)  2.252e+15  4.745e+07  47452996   <2e-16 ***
-		 * x           -2.252e+15  4.745e+07 -47452996   <2e-16 ***
-		 * ---
-		 * Signif. codes:  0 Ô***Õ 0.001 Ô**Õ 0.01 Ô*Õ 0.05 Ô.Õ 0.1 Ô Õ 1 
-		 * 
-		 * (Dispersion parameter for binomial family taken to be 1)
-		 * 
-		 *     Null perplexity:  5.5452  on 3  degrees of freedom
-		 * Residual perplexity: 74.9836  on 2  degrees of freedom
-		 * AIC: 78.984
-		 * 
-		 * Number of Fisher Scoring iterations: 25
-		 * 
-		 * 
-		 * 
-		 * See also: http://andrewgelman.com/2011/05/whassup_with_gl/
-		 * 
-		 * articles pointing just to sep: 
-		 *   http://www2.sas.com/proceedings/forum2008/360-2008.pdf
-		 *   http://interstat.statjournals.net/YEAR/2011/articles/1110003.pdf
-		 *   http://www.ats.ucla.edu/stat/mult_pkg/faq/general/complete_separation_logit_models.htm
-		 * 
-		 * see also:
-		 * summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6),maxit=1))
-		 * summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6),maxit=2))
-		 */
-		// crummy model- but best soln at wts = 0
-		final double[][] x = { 
-				{ 1, 1 },
-				{ 1, 0 },
-				{ 1, 1 },
-				{ 1, 0 }
-		};
-		final boolean[] y = {
-				true,
-				true,
-				false,
-				false
-		};
-		final int dim = x[0].length;
+	
+	/**
+	 * diverges from a zero start
+	 * > d <- read.table('perp.tsv',sep='\t',header=T)
+> ggplot(d,aes(x=wC,y=wX,z=perplexity0,fill=perplexity0)) + geom_tile(alpha=0.5) + scale_fill_gradient(low="green", high="red") + stat_contour()
+	 * soln:  -4.603       -5.296  
+	 * converges from: -4, -5 start
+	 * ggplot(d,aes(x=wC,y=wX,z=increase,fill=increase)) + geom_tile(alpha=0.5)
+	 */
+	private static SimpleProblem badZeroStartProblem = new SimpleProblem(
+			new double[][] { 
+					{ 1, 0},
+					{ 1, 0},
+					{ 1, 0.001},
+					{ 1, 100},
+					{ 1, -1},
+					{ 1, -1},
+			},
+			new boolean[] {
+					false,
+					true,
+					false,
+					false,
+					false,
+					true
+			},
+			new int[] {
+					50,
+					1,
+					50,
+					1,
+					5,
+					10
+			}
+			);
+	
+	public static void showProblem(final SimpleProblem prob, final double xL, final double xH, final double yL, final double yH) {
+		final int dim = prob.dim;
 		final int nPts = 100;
-		final double r = 6.0;
 		final String sep = "\t";
 		System.out.println("" + "wC" + sep + "wX" + sep + "perplexity0" + sep + "perplexity1" + sep + "decrease" + sep + "increase");
-		for(int xi=-nPts;xi<=nPts;++xi) {
-			final double w0 = xi*r/((double)nPts);
-			for(int yi=-nPts;yi<=nPts;++yi) {
-				final double w1 = yi*r/((double)nPts);
+		for(int xi=0;xi<=nPts;++xi) {
+			final double w0 = xL + (xH-xL)*xi/((double)nPts);
+			for(int yi=0;yi<=nPts;++yi) {
+				final double w1 = yL + (yH-yL)*yi/((double)nPts);
 				final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 				wts.set(0,w0);
 				wts.set(1,w1);
-				final double perplexity0 = perplexity(x,y,null,wts);
-				NewtonStep(x,y,null,wts, false);
-				final double perplexity1 = perplexity(x,y,null,wts);
+				final double perplexity0 = perplexity(prob.x,prob.y,prob.wt,wts);
+				NewtonStep(prob.x,prob.y,prob.wt,wts, false);
+				final double perplexity1 = perplexity(prob.x,prob.y,prob.wt,wts);
 				final boolean decrease = perplexity1<perplexity0;
 				final boolean increase = perplexity1>perplexity0;
 				System.out.println("" + w0 + sep + w1 + sep + perplexity0 + sep + perplexity1 + sep + decrease + sep + increase);
@@ -292,32 +334,32 @@ public final class ScoreStep {
 		}
 	}
 	
-	private final double[][] x = { 
-			{ 1.0,	0.0},
-			{ 1.0,	0.0},
-			{1.0,	0.001},
-			{1.0,	100.0},
-			{1.0,	-1.0},
-			{1.0,	-1.0}
-	};
-	
-	private final boolean[] y = {
-			false,
-			true,
-			false,
-			false,
-			false,
-			true
-	};
-	
-	private final int[] wt = {
-			50,
-			1,
-			50,
-			1,
-			5,
-			10
-	};
+	static final SimpleProblem example2D = new SimpleProblem(
+			new double[][] { 
+					{ 1.0,	0.0},
+					{ 1.0,	0.0},
+					{1.0,	0.001},
+					{1.0,	100.0},
+					{1.0,	-1.0},
+					{1.0,	-1.0}
+			},
+			new boolean[] {
+					false,
+					true,
+					false,
+					false,
+					false,
+					true
+			},
+			new int[] {
+					50,
+					1,
+					50,
+					1,
+					5,
+					10
+			}
+			);
 	/**
 	 * R version:
 	 * 	 * > d <- data.frame(x=c(0,0,0.001,100,-1,-1),y=c(F,T,F,F,F,T),wt=c(50,1,50,1,5,10))
@@ -353,16 +395,16 @@ public final class ScoreStep {
 	 * 
 	 */
 	
-	public void workProblem() {
-		final int dim = x[0].length;
+	public static void workProblem(final SimpleProblem p) {
+		final int dim = p.dim;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-		final double perplexity0 = perplexity(x,y,wt,wts);
+		final double perplexity0 = perplexity(p.x,p.y,p.wt,wts);
 		System.out.println("perplexity0: " + perplexity0);
 		for(int ns=0;ns<10;++ns) {
 			System.out.println();
-			NewtonStep(x,y,wt,wts, true);
+			NewtonStep(p.x,p.y,p.wt,wts, true);
 			System.out.println(wts);
-			final double perplexity1 = perplexity(x,y,wt,wts);
+			final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
 			System.out.println("perplexity" + (ns+1) + ": " + perplexity1);
 			if(perplexity1>perplexity0) {
 				System.out.println("break");
@@ -370,7 +412,7 @@ public final class ScoreStep {
 		}
 	}
 	
-	public void bruteSolve() {
+	public static void bruteSolve(final SimpleProblem p) {
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(2);
 		int nsteps = 100;
 		double best = Double.POSITIVE_INFINITY;
@@ -380,7 +422,7 @@ public final class ScoreStep {
 			wts.set(0,range*xi/((double)nsteps));
 			for(int yi=-nsteps;yi<=nsteps;++yi) {
 				wts.set(1,range*yi/((double)nsteps));
-				final double perplexity1 = perplexity(x,y,wt,wts);
+				final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
 				if((bestwts==null)||(perplexity1<best)) {
 					best = perplexity1;
 					bestwts = wts.copy();
@@ -392,10 +434,10 @@ public final class ScoreStep {
 			wts.set(i,bestwts.get(i));
 		}
 		for(int ns=0;ns<5;++ns) {
-			NewtonStep(x,y,wt,wts, true);
+			NewtonStep(p.x,p.y,p.wt,wts, true);
 			System.out.println("wt:");
 			System.out.println(wts);
-			final double perplexity1 = perplexity(x,y,wt,wts);
+			final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
 			System.out.println("perplexity" + (ns+1) + ": " + perplexity1);
 		}
 	}
@@ -405,10 +447,11 @@ public final class ScoreStep {
 	 */
 	public static void main(String[] args) {
 		//System.out.println("showing problem:");
-		//showProblem();
+		//showProblem(zeroSolnProblem,-6,6,-6,6);
+		showProblem(badZeroStartProblem,-12,-2,-12,-2);
 		//searchForProblem();
-		new ScoreStep().workProblem();
-		new ScoreStep().bruteSolve();
+		//workProblem(example2D);
+		//bruteSolve(example2D);
 	}
 
 }
