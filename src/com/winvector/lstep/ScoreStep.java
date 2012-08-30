@@ -102,8 +102,9 @@ public final class ScoreStep {
 	 * @param wt data weights (all > 0)
 	 * @param verbose print a lot
 	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
+	 * @return true if steped
 	 */
-	public static final void NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose) {
+	public static final boolean NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose) {
 		final int nDat = x.length;
 		final int dim = x[0].length;
 		final DoubleMatrix2D m = new DenseDoubleMatrix2D(dim,dim);
@@ -132,12 +133,19 @@ public final class ScoreStep {
 			if(verbose) {
 				System.out.println("delta:\n" + delta);
 			}
+			boolean sawDiff = false;
 			for(int j=0;j<dim;++j) {
-				wts.set(j,wts.get(j)+delta.get(j,0));
+				final double wi = wts.get(j);
+				final double nwi = wi+delta.get(j,0);
+				if(Math.abs(wi-nwi)/(Math.max(1.0,Math.abs(wi)))>1.0e-6) {
+					sawDiff = true;
+				}
+				wts.set(j,nwi);
 			}
+			return sawDiff;
 		} catch (Exception ex) {
-			// singular matrix
 		}
+		return false;
 	}
 	
 
@@ -289,6 +297,7 @@ public final class ScoreStep {
 		}
 		final Random rand = new Random(32535);
 		final int[] wt = new int[ndat];
+		trials:
 		for(int trial=0;trial<10000000;++trial) {
 			for(int j=0;j<ndat;++j) {
 				wt[j] = rand.nextInt(100) - 50;
@@ -296,7 +305,10 @@ public final class ScoreStep {
 			final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 			final double perplexity0 = perplexity(x,y,wt,wts);
 			for(int ns=0;ns<5;++ns) {
-				NewtonStep(x,y,wt,wts, false);
+				final boolean sawDiff = NewtonStep(x,y,wt,wts, false);
+				if(!sawDiff) {
+					continue trials;
+				}
 				final double perplexity1 = perplexity(x,y,wt,wts);
 				if(perplexity1>perplexity0) {
 					// don't count perplexity of things too near start (they can be rounding error)
@@ -314,6 +326,7 @@ public final class ScoreStep {
 							}
 						}
 						System.out.println("break " + ns);
+						continue trials;
 					}
 				}
 			}
