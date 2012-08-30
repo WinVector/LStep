@@ -1,6 +1,8 @@
 package com.winvector.lstep;
 
 import java.util.Random;
+import java.util.Set;
+import java.util.TreeSet;
 
 import cern.colt.matrix.DoubleMatrix1D;
 import cern.colt.matrix.DoubleMatrix2D;
@@ -272,7 +274,36 @@ public final class ScoreStep {
 		 */
 	}
 	
-	public static void searchForProblem() {
+	
+	private static double scoreExample(final double[][] x, final int dim,
+			final boolean[] y, final int[] wt) {
+		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
+		final double perplexity0 = perplexity(x,y,wt,wts);
+		for(int ns=0;ns<5;++ns) {
+			final boolean sawDiff = NewtonStep(x,y,wt,wts, false);
+			if(!sawDiff) {
+				return 0.0;
+			}
+			final double perplexity1 = perplexity(x,y,wt,wts);
+			if(perplexity1>perplexity0) {
+				// don't count perplexity of things too near start (they can be rounding error)
+				boolean sawNZ = false;
+				for(int j=0;j<dim;++j) {
+					if(Math.abs(wts.get(j))>1.0e-3) {
+						sawNZ = true;
+						break;
+					}
+				}
+				if(sawNZ) {
+					return 1.0/(1.0+ns);
+				}
+			}
+		}
+		return 0.0;
+	}
+	
+	public static Set<SimpleProblem> searchForProblem() {
+		final Set<SimpleProblem> found = new TreeSet<SimpleProblem>();
 		final double[][] x = { 
 				{ 1, 0},
 				{ 1, 0},
@@ -297,41 +328,21 @@ public final class ScoreStep {
 		}
 		final Random rand = new Random(32535);
 		final int[] wt = new int[ndat];
-		trials:
 		for(int trial=0;trial<10000000;++trial) {
 			for(int j=0;j<ndat;++j) {
 				wt[j] = rand.nextInt(100) - 50;
 			}
-			final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-			final double perplexity0 = perplexity(x,y,wt,wts);
-			for(int ns=0;ns<5;++ns) {
-				final boolean sawDiff = NewtonStep(x,y,wt,wts, false);
-				if(!sawDiff) {
-					continue trials;
-				}
-				final double perplexity1 = perplexity(x,y,wt,wts);
-				if(perplexity1>perplexity0) {
-					// don't count perplexity of things too near start (they can be rounding error)
-					boolean sawNZ = false;
-					for(int j=0;j<dim;++j) {
-						if(Math.abs(wts.get(j))>1.0e-3) {
-							sawNZ = true;
-							break;
-						}
-					}
-					if(sawNZ) {
-						for(int i=0;i<ndat;++i) {
-							if(wt[i]>0) {
-								System.out.println("" + x[i][0] + "\t" + x[i][1] + "\t"+ y[i] + "\t" + wt[i]);
-							}
-						}
-						System.out.println("break " + ns);
-						continue trials;
-					}
-				}
+			final double score = scoreExample(x, dim, y, wt);
+			if(score>0.0) {
+				SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,wt);
+				found.add(cleanRep);
+				System.out.println("found: " + cleanRep);
 			}
 		}
+		return found;
 	}
+
+
 	
 	static final SimpleProblem example2D = new SimpleProblem(
 			new double[][] { 
