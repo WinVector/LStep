@@ -197,7 +197,8 @@ public final class SimpleProblem implements Comparable<SimpleProblem> {
 		return compareTo((SimpleProblem)o)==0;
 	}
 	
-	public static Set<SimpleProblem> mutations(final SimpleProblem p) {
+	public static Set<SimpleProblem> mutations(SimpleProblem p) {
+		p = new SimpleProblem(p.x,p.y,p.wt); // copy so any alterations we make are not visible outside here (thread safety)
 		final Set<SimpleProblem> mutations = new TreeSet<SimpleProblem>();
 		final int m = p.nrow;
 		for(int i=0;i<m;++i) {
@@ -285,6 +286,7 @@ public final class SimpleProblem implements Comparable<SimpleProblem> {
 	
 	public static Set<SimpleProblem> breed(final SimpleProblem p0, final SimpleProblem p1,
 			final Random rand) {
+		final Set<SimpleProblem> children = new TreeSet<SimpleProblem>();
 		final int dim = p0.dim;
 		final int m = p0.nrow + p1.nrow;
 		final double[][] x = new double[m][dim];
@@ -305,7 +307,6 @@ public final class SimpleProblem implements Comparable<SimpleProblem> {
 			ow[p0.nrow+i] = p1.wt[i];
 		}
 		final int[] w = new int[m];
-		final Set<SimpleProblem> children = new TreeSet<SimpleProblem>();
 		for(int rep=0;rep<10;++rep) {
 			for(int i=0;i<m;++i) {
 				w[i] = rand.nextBoolean()?ow[i]:0;

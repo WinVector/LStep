@@ -1,9 +1,12 @@
 package com.winvector.lstep;
 
-import java.util.ArrayList;
+import java.util.Date;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import cern.colt.matrix.DoubleMatrix1D;
 import cern.colt.matrix.DoubleMatrix2D;
@@ -348,7 +351,6 @@ public final class ScoreStep {
 				{ 1, -100},
 		};
 		final int ndat = x.length;
-		final int dim = x[0].length;
 		final boolean[] y = new boolean[ndat];
 		for(int i=1;i<ndat;i+=2) {
 			y[i] = true;
@@ -361,7 +363,6 @@ public final class ScoreStep {
 			}
 			final double score = scoreExample(x, y, wt);
 			if(score>0.0) {
-				// TODO: check boundedness (or approximation of boundedness) before keeping
 				final SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,wt);
 				if((null!=cleanRep)&&(cleanRep.nrow>1)) {
 					found.add(cleanRep);
@@ -483,66 +484,148 @@ public final class ScoreStep {
 	}
 	
 
-	
-	public static SimpleProblem anneal(final SimpleProblem[] starts) {
-		final Random rand = new Random(23235);
-		final int psize = 100000;
-		final int nstart = starts.length;
-		final double[] startScores = new double[nstart];
-		SimpleProblem best = null;
-		double bestScore = Double.NEGATIVE_INFINITY;
-		for(int j=0;j<nstart;++j) {
-			final SimpleProblem sj = starts[j];
-			startScores[j] = scoreExample(sj.x,sj.y,sj.wt);
-			if((null==best)||(startScores[j]>bestScore)) {
-				best = sj;
-				bestScore = startScores[j];
-			}
-
-		}
-		final SimpleProblem[] population = new SimpleProblem[psize];
-		final double[] pscore = new double[psize];
-		for(int i=0;i<psize;++i) {
-			final int vi = rand.nextInt(nstart);
-			population[i] = starts[vi];
-			pscore[i] = startScores[vi];
-		}
-		for(int step=0;step<10000000;++step) {
-			final int di = rand.nextInt(psize);
-			final SimpleProblem donor = population[di];
-			final double dscore = pscore[di];
-			final Set<SimpleProblem> mutations = SimpleProblem.mutations(donor);
-			final SimpleProblem d2 = population[rand.nextInt(psize)];
-			final Set<SimpleProblem> children = SimpleProblem.breed(donor,d2,rand);
-			mutations.addAll(children);
-			for(final SimpleProblem mi: mutations) {
-				final double ms = scoreExample(mi.x,mi.y,mi.wt);
-				if((null==best)||(ms>bestScore)) {
-					best = mi;
-					bestScore = ms;
-					System.out.println("new record: " + bestScore + "\t" + best);
-				}
-				final int vi = rand.nextInt(psize);
-				// TODO: make depend on scores?
-				if((ms>dscore)||(ms>pscore[vi])||(rand.nextDouble()>0.2)) {
-					population[vi] = mi;
-					pscore[vi] = ms;
+	private static final class Population {
+		public SimpleProblem best = null;
+		public double bestScore = Double.NEGATIVE_INFINITY;
+		public final double[] pscore;
+		public final SimpleProblem[] population;
+		
+		public Population(final Random rand, final int psize, final SimpleProblem[] starts) {
+			pscore = new double[psize];
+			population = new SimpleProblem[psize];
+			final int nstart = starts.length;
+			final double[] startScores = new double[nstart];
+			for(int j=0;j<nstart;++j) {
+				final SimpleProblem sj = starts[j];
+				startScores[j] = scoreExample(sj.x,sj.y,sj.wt);
+				if((null==best)||(startScores[j]>bestScore)) {
+					best = sj;
+					bestScore = startScores[j];
 				}
 			}
+			for(int i=0;i<psize;++i) {
+				final int vi = rand.nextInt(nstart);
+				population[i] = starts[vi];
+				pscore[i] = startScores[vi];
+			}
 		}
-		return best;
+		
+		public Population(final Random rand, final Population o, final int psize) {
+			pscore = new double[psize];
+			population = new SimpleProblem[psize];
+			best = o.best;
+			bestScore = o.bestScore;
+			final int osize = o.population.length;
+			for(int i=0;i<psize;++i) {
+				final int vi = rand.nextInt(osize);
+				population[i] = o.population[vi];
+				pscore[i] = o.pscore[vi];
+			}
+		}
+		
+		public boolean show(final SimpleProblem p, final double score) {
+			if((null==best)||(score>bestScore)) {
+				best = p;
+				bestScore = score;
+				return true;
+			}
+			return false;
+		}
 	}
 	
+	private static final class AnealJob implements Runnable {
+		public final int id;
+		public final int psize;
+		public final Random rand;
+		public final Population shared;
+		
+		public AnealJob(final int id, final int psize, final Random rand, final Population shared) {
+			this.id = id;
+			this.psize = psize;
+			this.rand = rand;
+			this.shared = shared;
+		}
+
+		@Override
+		public void run() {
+			final Population p;
+			synchronized(shared) {
+				System.out.println("anneal Runnable " + id + " start " + new Date());
+				p = new Population(rand,shared,psize);
+			}
+			for(int step=0;step<10*psize;++step) {
+				final int di = rand.nextInt(psize);
+				final SimpleProblem donor = p.population[di];
+				final double dscore = p.pscore[di];
+				final Set<SimpleProblem> mutations = SimpleProblem.mutations(donor);
+				final SimpleProblem d2 = p.population[rand.nextInt(psize)];
+				final Set<SimpleProblem> children = SimpleProblem.breed(donor,d2,rand);
+				mutations.addAll(children);
+				boolean record = false;
+				for(final SimpleProblem mi: mutations) {
+					final double scorem = scoreExample(mi.x,mi.y,mi.wt);
+					if(p.show(mi,scorem)) {
+						record = true;
+						synchronized(shared) {
+							if(shared.show(mi,scorem)) {
+								System.out.println("new record: " + p.bestScore + "\t" + p.best);
+							}
+						}
+					}
+					final double ms = Math.max(scorem,0.5*(scorem+dscore)); // effective score (some credit from one parent)
+					final int nInserts = Math.max((int)Math.floor(10.0*ms),1);
+					for(int insi=0;insi<nInserts;++insi) {
+						final int vi = rand.nextInt(psize);
+						// 	number of insertions*worseodds < 1 to ensure progress
+						if((ms>p.pscore[vi])||(rand.nextDouble()>0.99)) {
+							p.population[vi] = mi;
+							p.pscore[vi] = ms;
+						}
+					}
+				}
+				// mix into shared population 
+				if(record||(step%(psize/5))==0) {
+					synchronized(shared) {
+						for(int i=0;i<psize;++i) {
+							final int oi = rand.nextInt(psize);
+							final int ti = rand.nextInt(shared.population.length);
+							final SimpleProblem or = p.population[oi];
+							final double os = p.pscore[oi];
+							p.population[oi] = shared.population[ti];
+							p.pscore[oi] = shared.pscore[ti];
+							shared.population[ti] = or;
+							shared.pscore[ti] = os;
+						}
+					}
+				}
+			}
+			synchronized(shared) {
+				System.out.println("anneal Runnable " + id + " finish " + new Date());
+			}
+		}
+	}
+
 	/**
 	 * @param args
+	 * @throws InterruptedException 
 	 */
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InterruptedException {
 		//System.out.println("showing problem:");
 		//showProblem(zeroSolnProblem,-6,6,-6,6);
 		//showProblem(badZeroStartProblem,-12,-2,-12,-2);
 		final Set<SimpleProblem> starts = searchForProblem();
 		System.out.println("start anneal");
-		anneal(starts.toArray(new SimpleProblem[starts.size()]));
+		final Random rand = new Random(235235);
+		final Population shared = new Population(new Random(rand.nextLong()),1000000,starts.toArray(new SimpleProblem[starts.size()]));
+		final int njobs = 100;
+		final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
+		final ThreadPoolExecutor executor = new ThreadPoolExecutor(10,10,100,TimeUnit.SECONDS,queue);
+		for(int i=0;i<njobs;++i) {
+			executor.execute(new AnealJob(i,10000,new Random(rand.nextLong()),shared));
+		}
+		executor.shutdown();
+		executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
+		System.out.println("done anneal");
 		//workProblem(example2D);
 		//bruteSolve(example2D);
 	}
