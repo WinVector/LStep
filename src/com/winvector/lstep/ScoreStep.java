@@ -278,7 +278,32 @@ public final class ScoreStep {
 	
 	private static double scoreExample(final double[][] x,
 			final boolean[] y, final int[] wt) {
+		if(x.length<1) {
+			return 0.0;
+		}
 		final int dim = x[0].length;
+		// real crude approximate boundedness check
+		final boolean[] sawAgreement = new boolean[dim];
+		final boolean[] sawDisaggree = new boolean[dim];
+		for(int i=0;i<x.length;++i) {
+			for(int j=0;j<dim;++j) {
+				if(Math.abs(x[i][j])>1.0e-8) {
+					if(y[i]==(x[i][j]>0)) {
+						sawAgreement[j] |= true;
+					} else { 
+						sawDisaggree[j] |= true;
+					}
+				}
+			}
+		}
+		for(int j=0;j<dim;++j) {
+			if(!sawAgreement[j]) {
+				return 0.0;
+			}
+			if(!sawDisaggree[j]) {
+				return 0.0;
+			}
+		}
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		final double perplexity0 = perplexity(x,y,wt,wts);
 		for(int ns=0;ns<6;++ns) {
