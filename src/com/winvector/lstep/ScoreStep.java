@@ -1,5 +1,6 @@
 package com.winvector.lstep;
 
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
@@ -275,11 +276,12 @@ public final class ScoreStep {
 	}
 	
 	
-	private static double scoreExample(final double[][] x, final int dim,
+	private static double scoreExample(final double[][] x,
 			final boolean[] y, final int[] wt) {
+		final int dim = x[0].length;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		final double perplexity0 = perplexity(x,y,wt,wts);
-		for(int ns=0;ns<5;++ns) {
+		for(int ns=0;ns<6;++ns) {
 			final boolean sawDiff = NewtonStep(x,y,wt,wts, false);
 			if(!sawDiff) {
 				return 0.0;
@@ -332,11 +334,14 @@ public final class ScoreStep {
 			for(int j=0;j<ndat;++j) {
 				wt[j] = rand.nextInt(100) - 50;
 			}
-			final double score = scoreExample(x, dim, y, wt);
+			final double score = scoreExample(x, y, wt);
 			if(score>0.0) {
-				SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,wt);
-				found.add(cleanRep);
-				System.out.println("found: " + cleanRep);
+				// TODO: check boundedness (or approximation of boundedness) before keeping
+				final SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,wt);
+				if((null!=cleanRep)&&(cleanRep.nrow>1)) {
+					found.add(cleanRep);
+					System.out.println("found: " + score + "\t" + cleanRep);
+				}
 			}
 		}
 		return found;
@@ -452,6 +457,57 @@ public final class ScoreStep {
 		}
 	}
 	
+
+	
+	public static SimpleProblem anneal(final SimpleProblem[] starts) {
+		final Random rand = new Random(23235);
+		final int psize = 100000;
+		final int nstart = starts.length;
+		final double[] startScores = new double[nstart];
+		SimpleProblem best = null;
+		double bestScore = Double.NEGATIVE_INFINITY;
+		for(int j=0;j<nstart;++j) {
+			final SimpleProblem sj = starts[j];
+			startScores[j] = scoreExample(sj.x,sj.y,sj.wt);
+			if((null==best)||(startScores[j]>bestScore)) {
+				best = sj;
+				bestScore = startScores[j];
+			}
+
+		}
+		final SimpleProblem[] population = new SimpleProblem[psize];
+		final double[] pscore = new double[psize];
+		for(int i=0;i<psize;++i) {
+			final int vi = rand.nextInt(nstart);
+			population[i] = starts[vi];
+			pscore[i] = startScores[vi];
+		}
+		for(int step=0;step<10000000;++step) {
+			final int di = rand.nextInt(psize);
+			final SimpleProblem donor = population[di];
+			final double dscore = pscore[di];
+			final Set<SimpleProblem> mutations = SimpleProblem.mutations(donor);
+			final SimpleProblem d2 = population[rand.nextInt(psize)];
+			final Set<SimpleProblem> children = SimpleProblem.breed(donor,d2,rand);
+			mutations.addAll(children);
+			for(final SimpleProblem mi: mutations) {
+				final double ms = scoreExample(mi.x,mi.y,mi.wt);
+				if((null==best)||(ms>bestScore)) {
+					best = mi;
+					bestScore = ms;
+					System.out.println("new record: " + bestScore + "\t" + best);
+				}
+				final int vi = rand.nextInt(psize);
+				// TODO: make depend on scores?
+				if((ms>dscore)||(ms>pscore[vi])||(rand.nextDouble()>0.2)) {
+					population[vi] = mi;
+					pscore[vi] = ms;
+				}
+			}
+		}
+		return best;
+	}
+	
 	/**
 	 * @param args
 	 */
@@ -459,7 +515,9 @@ public final class ScoreStep {
 		//System.out.println("showing problem:");
 		//showProblem(zeroSolnProblem,-6,6,-6,6);
 		//showProblem(badZeroStartProblem,-12,-2,-12,-2);
-		searchForProblem();
+		final Set<SimpleProblem> starts = searchForProblem();
+		System.out.println("start anneal");
+		anneal(starts.toArray(new SimpleProblem[starts.size()]));
 		//workProblem(example2D);
 		//bruteSolve(example2D);
 	}
