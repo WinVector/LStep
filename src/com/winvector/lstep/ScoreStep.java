@@ -289,45 +289,31 @@ public final class ScoreStep {
 		}
 		final Random rand = new Random(32535);
 		final int[] wt = new int[ndat];
-		for(int trial=0;trial<1000000;++trial) {
+		for(int trial=0;trial<10000000;++trial) {
 			for(int j=0;j<ndat;++j) {
 				wt[j] = rand.nextInt(100) - 50;
 			}
-			// only run if we see positive weight on true and false (necessary for bounded sol, but not sufficient as we have minus coefs)
-			boolean sawTrue = false;
-			boolean sawFalse = false;
-			for(int i=0;i<ndat;++i) {
-				if(wt[i]>0) {
-					if(y[i]) {
-						sawTrue = true;
-					} else {
-						sawFalse = true;
+			final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
+			final double perplexity0 = perplexity(x,y,wt,wts);
+			for(int ns=0;ns<5;++ns) {
+				NewtonStep(x,y,wt,wts, false);
+				final double perplexity1 = perplexity(x,y,wt,wts);
+				if(perplexity1>perplexity0) {
+					// don't count perplexity of things too near start (they can be rounding error)
+					boolean sawNZ = false;
+					for(int j=0;j<dim;++j) {
+						if(Math.abs(wts.get(j))>1.0e-3) {
+							sawNZ = true;
+							break;
+						}
 					}
-				}
-			}
-			if(sawTrue&&sawFalse) {
-				final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-				final double perplexity0 = perplexity(x,y,wt,wts);
-				for(int ns=0;ns<5;++ns) {
-					NewtonStep(x,y,wt,wts, false);
-					final double perplexity1 = perplexity(x,y,wt,wts);
-					if(perplexity1>perplexity0) {
-						// don't count perplexity of things too near start (they can be rounding error)
-						boolean sawNZ = false;
-						for(int j=0;j<dim;++j) {
-							if(Math.abs(wts.get(j))>1.0e-3) {
-								sawNZ = true;
-								break;
+					if(sawNZ) {
+						for(int i=0;i<ndat;++i) {
+							if(wt[i]>0) {
+								System.out.println("" + x[i][0] + "\t" + x[i][1] + "\t"+ y[i] + "\t" + wt[i]);
 							}
 						}
-						if(sawNZ) {
-							for(int i=0;i<ndat;++i) {
-								if(wt[i]>0) {
-									System.out.println("" + x[i][0] + "\t" + x[i][1] + "\t"+ y[i] + "\t" + wt[i]);
-								}
-							}
-							System.out.println("break");
-						}
+						System.out.println("break " + ns);
 					}
 				}
 			}
@@ -448,8 +434,8 @@ public final class ScoreStep {
 	public static void main(String[] args) {
 		//System.out.println("showing problem:");
 		//showProblem(zeroSolnProblem,-6,6,-6,6);
-		showProblem(badZeroStartProblem,-12,-2,-12,-2);
-		//searchForProblem();
+		//showProblem(badZeroStartProblem,-12,-2,-12,-2);
+		searchForProblem();
 		//workProblem(example2D);
 		//bruteSolve(example2D);
 	}
