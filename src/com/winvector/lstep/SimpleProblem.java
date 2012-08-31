@@ -310,10 +310,10 @@ public final class SimpleProblem implements Comparable<SimpleProblem> {
 		for(int rep=0;rep<10;++rep) {
 			for(int i=0;i<m;++i) {
 				w[i] = rand.nextBoolean()?ow[i]:0;
-				final SimpleProblem np = SimpleProblem.cleanRep(x,y,w);
-				if((null!=np)&&(np.nrow>1)) {
-					children.add(np);
-				}
+			}
+			final SimpleProblem np = SimpleProblem.cleanRep(x,y,w);
+			if((null!=np)&&(np.nrow>1)&&(np.nrow<=20)) {
+				children.add(np);
 			}
 		}
 		return children;
