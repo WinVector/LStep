@@ -107,10 +107,11 @@ public final class ScoreStep {
 	 * @param y
 	 * @param wt data weights (all > 0)
 	 * @param verbose print a lot
+	 * @param minAbsDet TODO
 	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
 	 * @return true if steped
 	 */
-	public static final boolean NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose) {
+	public static final boolean NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose, double minAbsDet) {
 		final int nDat = x.length;
 		final int dim = x[0].length;
 		final DoubleMatrix2D m = new DenseDoubleMatrix2D(dim,dim);
@@ -134,6 +135,12 @@ public final class ScoreStep {
 			if(verbose) {
 				System.out.println("m:\n" + m);
 				System.out.println("v:\n" + v);
+			}
+			if(minAbsDet>0) {
+				final double det = Algebra.DEFAULT.det(m);
+				if(Math.abs(det)<minAbsDet) {
+					return false;
+				}
 			}
 			final DoubleMatrix2D delta = Algebra.DEFAULT.solve(m, v);
 			if(verbose) {
@@ -263,7 +270,7 @@ public final class ScoreStep {
 				wts.set(0,w0);
 				wts.set(1,w1);
 				final double perplexity0 = perplexity(prob.x,prob.y,prob.wt,wts);
-				NewtonStep(prob.x,prob.y,prob.wt,wts, false);
+				NewtonStep(prob.x,prob.y,prob.wt,wts, false, 0.0);
 				final double perplexity1 = perplexity(prob.x,prob.y,prob.wt,wts);
 				final boolean decrease = perplexity1<perplexity0;
 				final boolean increase = perplexity1>perplexity0;
@@ -309,8 +316,8 @@ public final class ScoreStep {
 		}
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		final double perplexity0 = perplexity(x,y,wt,wts);
-		for(int ns=0;ns<6;++ns) {
-			final boolean sawDiff = NewtonStep(x,y,wt,wts, false);
+		for(int ns=0;ns<=10;++ns) {
+			final boolean sawDiff = NewtonStep(x,y,wt,wts, false, ns<=0?1.0e-3:0.0);
 			if(!sawDiff) {
 				return 0.0;
 			}
@@ -330,6 +337,30 @@ public final class ScoreStep {
 			}
 		}
 		return 0.0;
+	}
+	
+	public static Set<SimpleProblem> randProbs(final int dim) {
+		final Set<SimpleProblem> found = new TreeSet<SimpleProblem>();
+		final Random rand = new Random(3253);
+		final int m = 20;
+		final double[][] x = new double[m][dim];
+		final boolean[] y = new boolean[m];
+		final int[] w = new int[m];
+		for(int rep=0;rep<10000;++rep) {
+			for(int i=0;i<m;++i) {
+				x[i][0] = 1.0;
+				for(int j=1;j<dim;++j) {
+					x[i][j] = rand.nextGaussian();
+				}
+				y[i] = rand.nextBoolean();
+				w[i] = rand.nextInt(100) - 50;
+			}
+			final SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,w);
+			if((null!=cleanRep)&&(cleanRep.nrow>1)) {
+				found.add(cleanRep);
+			}			
+		}
+		return found;
 	}
 	
 	public static Set<SimpleProblem> searchForProblem() {
@@ -443,7 +474,7 @@ public final class ScoreStep {
 		System.out.println("perplexity0: " + perplexity0);
 		for(int ns=0;ns<10;++ns) {
 			System.out.println();
-			NewtonStep(p.x,p.y,p.wt,wts, true);
+			NewtonStep(p.x,p.y,p.wt,wts, true, 0.0);
 			System.out.println(wts);
 			final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
 			System.out.println("perplexity" + (ns+1) + ": " + perplexity1);
@@ -453,7 +484,7 @@ public final class ScoreStep {
 		}
 	}
 	
-	public static void bruteSolve(final SimpleProblem p) {
+	public static void bruteSolve2D(final SimpleProblem p) {
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(2);
 		int nsteps = 100;
 		double best = Double.POSITIVE_INFINITY;
@@ -475,7 +506,7 @@ public final class ScoreStep {
 			wts.set(i,bestwts.get(i));
 		}
 		for(int ns=0;ns<5;++ns) {
-			NewtonStep(p.x,p.y,p.wt,wts, true);
+			NewtonStep(p.x,p.y,p.wt,wts, true, 0.0);
 			System.out.println("wt:");
 			System.out.println(wts);
 			final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
@@ -553,7 +584,7 @@ public final class ScoreStep {
 				System.out.println("anneal Runnable " + id + " start " + new Date());
 				p = new Population(rand,shared,psize);
 			}
-			for(int step=0;step<10*psize;++step) {
+			for(int step=0;step<2*psize;++step) {
 				final int di = rand.nextInt(psize);
 				final SimpleProblem donor = p.population[di];
 				final double dscore = p.pscore[di];
@@ -577,15 +608,16 @@ public final class ScoreStep {
 					for(int insi=0;insi<nInserts;++insi) {
 						final int vi = rand.nextInt(psize);
 						// 	number of insertions*worseodds < 1 to ensure progress
-						if((ms>p.pscore[vi])||(rand.nextDouble()>0.99)) {
+						if((ms>p.pscore[vi])||(rand.nextDouble()>0.5)) {
 							p.population[vi] = mi;
 							p.pscore[vi] = ms;
 						}
 					}
 				}
 				// mix into shared population 
-				if(record||(step%(psize/5))==0) {
+				if(record||(step%(psize/2))==0) {
 					synchronized(shared) {
+						//System.out.println("Runnable " + id + " mixing into main population " + new Date());
 						for(int i=0;i<psize;++i) {
 							final int oi = rand.nextInt(psize);
 							final int ti = rand.nextInt(shared.population.length);
@@ -613,15 +645,17 @@ public final class ScoreStep {
 		//System.out.println("showing problem:");
 		//showProblem(zeroSolnProblem,-6,6,-6,6);
 		//showProblem(badZeroStartProblem,-12,-2,-12,-2);
-		final Set<SimpleProblem> starts = searchForProblem();
+		//final Set<SimpleProblem> starts = searchForProblem();
+		final Set<SimpleProblem> starts = randProbs(4);
 		System.out.println("start anneal");
 		final Random rand = new Random(235235);
 		final Population shared = new Population(new Random(rand.nextLong()),1000000,starts.toArray(new SimpleProblem[starts.size()]));
-		final int njobs = 100;
+		final int njobs = 20;
+		final int nparallel = 6;
 		final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
-		final ThreadPoolExecutor executor = new ThreadPoolExecutor(10,10,100,TimeUnit.SECONDS,queue);
+		final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
 		for(int i=0;i<njobs;++i) {
-			executor.execute(new AnealJob(i,10000,new Random(rand.nextLong()),shared));
+			executor.execute(new AnealJob(i,100000,new Random(rand.nextLong()),shared));
 		}
 		executor.shutdown();
 		executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
