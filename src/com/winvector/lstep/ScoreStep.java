@@ -286,6 +286,7 @@ public final class ScoreStep {
 	}
 	
 	
+
 	private static double scoreExample(final double[][] x,
 			final boolean[] y, final int[] wt) {
 		if(x.length<1) {
@@ -338,7 +339,56 @@ public final class ScoreStep {
 		}
 		return 0.0;
 	}
-	
+
+	private static double scoreExample2(final double[][] x,
+			final boolean[] y, final int[] wt) {
+		if(x.length<1) {
+			return 0.0;
+		}
+		final int dim = x[0].length;
+		// real crude approximate boundedness check
+		final boolean[] sawAgreement = new boolean[dim];
+		final boolean[] sawDisaggree = new boolean[dim];
+		for(int i=0;i<x.length;++i) {
+			for(int j=0;j<dim;++j) {
+				if(Math.abs(x[i][j])>1.0e-8) {
+					if(y[i]==(x[i][j]>0)) {
+						sawAgreement[j] |= true;
+					} else { 
+						sawDisaggree[j] |= true;
+					}
+				}
+			}
+		}
+		for(int j=0;j<dim;++j) {
+			if(!sawAgreement[j]) {
+				return 0.0;
+			}
+			if(!sawDisaggree[j]) {
+				return 0.0;
+			}
+		}
+		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
+		final double perplexity0 = perplexity(x,y,wt,wts);
+		final boolean sawDiff = NewtonStep(x,y,wt,wts, false, 1.0e-3);
+		if(!sawDiff) {
+			return 0.0;
+		}
+		// don't count perplexity of things too near start (they can be rounding error)
+		boolean sawNZ = false;
+		for(int j=0;j<dim;++j) {
+			if(Math.abs(wts.get(j))>1.0e-3) {
+				sawNZ = true;
+				break;
+			}
+		}
+		if(!sawNZ) {
+			return 0.0;
+		}
+		final double perplexity1 = perplexity(x,y,wt,wts);
+		return perplexity1/perplexity0;
+	}
+
 	public static Set<SimpleProblem> randProbs(final int dim) {
 		final Set<SimpleProblem> found = new TreeSet<SimpleProblem>();
 		final Random rand = new Random(3253);
@@ -564,19 +614,45 @@ public final class ScoreStep {
 		}
 	}
 	
-	private static final class AnealJob implements Runnable {
+	private static class AnnealJob1 implements Runnable {
 		public final int id;
 		public final int psize;
 		public final Random rand;
 		public final Population shared;
 		
-		public AnealJob(final int id, final int psize, final Random rand, final Population shared) {
+		public AnnealJob1(final int id, final int psize, final Random rand, final Population shared) {
 			this.id = id;
 			this.psize = psize;
 			this.rand = rand;
 			this.shared = shared;
 		}
+		
+		private void swap(final Population p) {
+			synchronized(shared) {
+				//System.out.println("Runnable " + id + " mixing into main population " + new Date());
+				for(int oi=0;oi<psize;++oi) {
+					if(rand.nextBoolean()) {
+						final int ti = rand.nextInt(shared.population.length);
+						final SimpleProblem or = p.population[oi];
+						final double os = p.pscore[oi];
+						p.population[oi] = shared.population[ti];
+						p.pscore[oi] = shared.pscore[ti];
+						shared.population[ti] = or;
+						shared.pscore[ti] = os;
+					}
+				}
+			}
+		}
 
+		protected double score(final SimpleProblem mi) {
+			return scoreExample(mi.x,mi.y,mi.wt);
+		}
+		
+		protected int nInserts(final double score) {
+			final int nInserts = Math.max((int)Math.floor(10.0*score),1);
+			return nInserts;
+		}
+		
 		@Override
 		public void run() {
 			final Population p;
@@ -594,7 +670,7 @@ public final class ScoreStep {
 				mutations.addAll(children);
 				boolean record = false;
 				for(final SimpleProblem mi: mutations) {
-					final double scorem = scoreExample(mi.x,mi.y,mi.wt);
+					final double scorem = score(mi);
 					if(p.show(mi,scorem)) {
 						record = true;
 						synchronized(shared) {
@@ -604,7 +680,7 @@ public final class ScoreStep {
 						}
 					}
 					final double ms = Math.max(scorem,0.5*(scorem+dscore)); // effective score (some credit from one parent)
-					final int nInserts = Math.max((int)Math.floor(10.0*ms),1);
+					final int nInserts = nInserts(ms);
 					for(int insi=0;insi<nInserts;++insi) {
 						final int vi = rand.nextInt(psize);
 						// 	number of insertions*worseodds < 1 to ensure progress
@@ -616,26 +692,35 @@ public final class ScoreStep {
 				}
 				// mix into shared population 
 				if(record||(step%(psize/2))==0) {
-					synchronized(shared) {
-						//System.out.println("Runnable " + id + " mixing into main population " + new Date());
-						for(int oi=0;oi<psize;++oi) {
-							if(rand.nextBoolean()) {
-								final int ti = rand.nextInt(shared.population.length);
-								final SimpleProblem or = p.population[oi];
-								final double os = p.pscore[oi];
-								p.population[oi] = shared.population[ti];
-								p.pscore[oi] = shared.pscore[ti];
-								shared.population[ti] = or;
-								shared.pscore[ti] = os;
-							}
-						}
-					}
+					swap(p);
 				}
 			}
+			swap(p);
 			synchronized(shared) {
 				System.out.println("anneal Runnable " + id + " finish " + new Date());
 			}
 		}
+	}
+	
+	private static class AnnealJob2 extends AnnealJob1 {
+		public AnnealJob2(final int id, final int psize, final Random rand, final Population shared) {
+			super(id,psize,rand,shared);
+		}
+		
+		@Override
+		protected double score(final SimpleProblem mi) {
+			return scoreExample2(mi.x,mi.y,mi.wt);
+		}
+		
+		@Override
+		protected int nInserts(final double score) {
+			if(score<1.0) {
+				return Math.min(19,Math.max((int)Math.floor(-3.0*Math.log(1.0-score)),1));
+			} else {
+				return 20;
+			}
+		}
+
 	}
 
 	/**
@@ -650,17 +735,32 @@ public final class ScoreStep {
 		final Set<SimpleProblem> starts = randProbs(4);
 		System.out.println("start anneal");
 		final Random rand = new Random(235235);
-		final Population shared = new Population(new Random(rand.nextLong()),500000,starts.toArray(new SimpleProblem[starts.size()]));
-		final int njobs = 200;
-		final int nparallel = 6;
-		final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
-		final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
-		for(int i=0;i<njobs;++i) {
-			executor.execute(new AnealJob(i,100000,new Random(rand.nextLong()),shared));
+		final Population shared = new Population(new Random(rand.nextLong()),10000,starts.toArray(new SimpleProblem[starts.size()]));
+		{
+			final int njobs = 6;
+			final int nparallel = 6;
+			final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
+			final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
+			for(int i=0;i<njobs;++i) {
+				executor.execute(new AnnealJob1(i,1000,new Random(rand.nextLong()),shared));
+			}
+			executor.shutdown();
+			executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
+			System.out.println("done anneal1");
 		}
-		executor.shutdown();
-		executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
-		System.out.println("done anneal");
+		final Population shared2 = new Population(new Random(rand.nextLong()),100000,shared.population);
+		{
+			final int njobs = 20;
+			final int nparallel = 6;
+			final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
+			final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
+			for(int i=0;i<njobs;++i) {
+				executor.execute(new AnnealJob2(i,10000,new Random(rand.nextLong()),shared2));
+			}
+			executor.shutdown();
+			executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
+			System.out.println("done anneal2");
+		}
 		//workProblem(example2D);
 		//bruteSolve(example2D);
 	}
