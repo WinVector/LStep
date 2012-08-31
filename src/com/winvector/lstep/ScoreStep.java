@@ -317,13 +317,17 @@ public final class ScoreStep {
 		}
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		final double perplexity0 = perplexity(x,y,wt,wts);
+		double perplexity1 = 0.0;
 		for(int ns=0;ns<=10;++ns) {
 			final boolean sawDiff = NewtonStep(x,y,wt,wts, false, ns<=0?1.0e-3:0.0);
 			if(!sawDiff) {
 				return 0.0;
 			}
-			final double perplexity1 = perplexity(x,y,wt,wts);
-			if(perplexity1>perplexity0) {
+			final double perplexityI = perplexity(x,y,wt,wts);
+			if(ns<=0) {
+				perplexity1 = perplexityI;
+			}
+			if(perplexityI>perplexity0) {
 				// don't count perplexity of things too near start (they can be rounding error)
 				boolean sawNZ = false;
 				for(int j=0;j<dim;++j) {
@@ -333,7 +337,7 @@ public final class ScoreStep {
 					}
 				}
 				if(sawNZ) {
-					return 1.0/(1.0+ns);
+					return perplexity1/(perplexity0*(1.0+ns));
 				}
 			}
 		}
@@ -735,31 +739,18 @@ public final class ScoreStep {
 		final Set<SimpleProblem> starts = randProbs(4);
 		System.out.println("start anneal");
 		final Random rand = new Random(235235);
-		final Population shared = new Population(new Random(rand.nextLong()),10000,starts.toArray(new SimpleProblem[starts.size()]));
-		{
-			final int njobs = 6;
-			final int nparallel = 6;
-			final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
-			final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
-			for(int i=0;i<njobs;++i) {
-				executor.execute(new AnnealJob1(i,1000,new Random(rand.nextLong()),shared));
-			}
-			executor.shutdown();
-			executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
-			System.out.println("done anneal1");
-		}
-		final Population shared2 = new Population(new Random(rand.nextLong()),100000,shared.population);
+		final Population shared = new Population(new Random(rand.nextLong()),500000,starts.toArray(new SimpleProblem[starts.size()]));
 		{
 			final int njobs = 20;
 			final int nparallel = 6;
 			final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
 			final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
 			for(int i=0;i<njobs;++i) {
-				executor.execute(new AnnealJob2(i,10000,new Random(rand.nextLong()),shared2));
+				executor.execute(new AnnealJob1(i,100000,new Random(rand.nextLong()),shared));
 			}
 			executor.shutdown();
 			executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
-			System.out.println("done anneal2");
+			System.out.println("done anneal1");
 		}
 		//workProblem(example2D);
 		//bruteSolve(example2D);
