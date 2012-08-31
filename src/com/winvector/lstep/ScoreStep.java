@@ -618,15 +618,16 @@ public final class ScoreStep {
 				if(record||(step%(psize/2))==0) {
 					synchronized(shared) {
 						//System.out.println("Runnable " + id + " mixing into main population " + new Date());
-						for(int i=0;i<psize;++i) {
-							final int oi = rand.nextInt(psize);
-							final int ti = rand.nextInt(shared.population.length);
-							final SimpleProblem or = p.population[oi];
-							final double os = p.pscore[oi];
-							p.population[oi] = shared.population[ti];
-							p.pscore[oi] = shared.pscore[ti];
-							shared.population[ti] = or;
-							shared.pscore[ti] = os;
+						for(int oi=0;oi<psize;++oi) {
+							if(rand.nextBoolean()) {
+								final int ti = rand.nextInt(shared.population.length);
+								final SimpleProblem or = p.population[oi];
+								final double os = p.pscore[oi];
+								p.population[oi] = shared.population[ti];
+								p.pscore[oi] = shared.pscore[ti];
+								shared.population[ti] = or;
+								shared.pscore[ti] = os;
+							}
 						}
 					}
 				}
