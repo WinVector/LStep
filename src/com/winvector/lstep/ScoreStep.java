@@ -599,7 +599,7 @@ public final class ScoreStep {
 						record = true;
 						synchronized(shared) {
 							if(shared.show(mi,scorem)) {
-								System.out.println("new record: " + p.bestScore + "\t" + p.best);
+								System.out.println("new record: " + p.bestScore + "\t" + p.best + "\t" + new Date());
 							}
 						}
 					}
@@ -608,7 +608,7 @@ public final class ScoreStep {
 					for(int insi=0;insi<nInserts;++insi) {
 						final int vi = rand.nextInt(psize);
 						// 	number of insertions*worseodds < 1 to ensure progress
-						if((ms>p.pscore[vi])||(rand.nextDouble()>0.5)) {
+						if((ms>p.pscore[vi])||(rand.nextDouble()>0.9)) {
 							p.population[vi] = mi;
 							p.pscore[vi] = ms;
 						}
@@ -649,7 +649,7 @@ public final class ScoreStep {
 		final Set<SimpleProblem> starts = randProbs(4);
 		System.out.println("start anneal");
 		final Random rand = new Random(235235);
-		final Population shared = new Population(new Random(rand.nextLong()),100000,starts.toArray(new SimpleProblem[starts.size()]));
+		final Population shared = new Population(new Random(rand.nextLong()),50000,starts.toArray(new SimpleProblem[starts.size()]));
 		final int njobs = 200;
 		final int nparallel = 6;
 		final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
