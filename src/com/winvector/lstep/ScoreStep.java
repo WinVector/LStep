@@ -649,13 +649,13 @@ public final class ScoreStep {
 		final Set<SimpleProblem> starts = randProbs(4);
 		System.out.println("start anneal");
 		final Random rand = new Random(235235);
-		final Population shared = new Population(new Random(rand.nextLong()),1000000,starts.toArray(new SimpleProblem[starts.size()]));
-		final int njobs = 20;
+		final Population shared = new Population(new Random(rand.nextLong()),100000,starts.toArray(new SimpleProblem[starts.size()]));
+		final int njobs = 200;
 		final int nparallel = 6;
 		final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
 		final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
 		for(int i=0;i<njobs;++i) {
-			executor.execute(new AnealJob(i,100000,new Random(rand.nextLong()),shared));
+			executor.execute(new AnealJob(i,10000,new Random(rand.nextLong()),shared));
 		}
 		executor.shutdown();
 		executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
