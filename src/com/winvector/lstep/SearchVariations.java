@@ -41,11 +41,11 @@ public class SearchVariations {
 								for(p.wt[1]=1;p.wt[1]<wtBound;++p.wt[1]) {
 									for(p.wt[2]=1;p.wt[2]<wtBound;++p.wt[2]) {
 										final DoubleMatrix1D wts = new DenseDoubleMatrix1D(p.dim);
-										final double perplexity0 = ScoreStep.perplexity(p.x,p.y,p.wt,wts);
+										final double perplexity0 = ProblemVariations.perplexity(p.x,p.y,p.wt,wts);
 										//System.out.println("p0: " + perplexity0);
-										ScoreStep.NewtonStep(p.x,p.y,p.wt,wts, false, 0.0);		
+										ProblemVariations.NewtonStep(p.x,p.y,p.wt,wts, false, 0.0);		
 										//System.out.println("w: " + wts);
-										final double perplexity1 = ScoreStep.perplexity(p.x,p.y,p.wt,wts);
+										final double perplexity1 = ProblemVariations.perplexity(p.x,p.y,p.wt,wts);
 										//System.out.println("p1: " + perplexity1);
 										if(perplexity1>perplexity0) {
 											System.out.println("found: " + p);

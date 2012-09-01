@@ -1,18 +1,11 @@
 package com.winvector.lstep;
 
-import java.util.Date;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import cern.colt.matrix.DoubleMatrix1D;
-import cern.colt.matrix.DoubleMatrix2D;
 import cern.colt.matrix.impl.DenseDoubleMatrix1D;
-import cern.colt.matrix.impl.DenseDoubleMatrix2D;
-import cern.colt.matrix.linalg.Algebra;
 
 
 /**
@@ -29,7 +22,7 @@ public final class ScoreStep {
 
 	private static final double ln0p5 = Math.log(0.5);
 
-	private static double dot(final DoubleMatrix1D a, final double[] b) {
+	static double dot(final DoubleMatrix1D a, final double[] b) {
 		final int n = b.length;
 		double r = 0.0;
 		for(int j=0;j<n;++j) {
@@ -84,84 +77,6 @@ public final class ScoreStep {
 		}
 	}
 	
-	public static final double perplexity(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts) {
-		final int nDat = x.length;
-		double perplexity = 0.0;
-		for(int i=0;i<nDat;++i) {
-			if((null==wt)||(wt[i]>0)) {
-				final double wti = wt==null?1.0:wt[i];
-				final double[] xi = x[i];
-				final double d = dot(wts,xi);				
-				if(y[i]) {
-					perplexity -= wti*logSigmoid(d);
-				} else {
-					perplexity -= wti*logOneMinusSigmoid(d);
-				}
-			}
-		}
-		return perplexity;
-	}
-	
-	/**
-	 * @param x
-	 * @param y
-	 * @param wt data weights (all > 0)
-	 * @param verbose print a lot
-	 * @param minAbsDet TODO
-	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
-	 * @return true if steped
-	 */
-	public static final boolean NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose, double minAbsDet) {
-		final int nDat = x.length;
-		final int dim = x[0].length;
-		final DoubleMatrix2D m = new DenseDoubleMatrix2D(dim,dim);
-		final DoubleMatrix2D v = new DenseDoubleMatrix2D(dim,1);
-		for(int i=0;i<nDat;++i) {
-			if((null==wt)||(wt[i]>0)) {
-				final double wti = wt==null?1.0:wt[i];
-				final double[] xi = x[i];
-				final double pi = sigmoid(dot(wts,xi));
-				final double mwt = pi*(1.0-pi);
-				final double vwt = (y[i]?1.0:0.0) - pi;
-				for(int j=0;j<dim;++j) {
-					v.set(j,0,v.get(j,0) + wti*vwt*xi[j]);
-					for(int k=0;k<dim;++k) {
-						m.set(j,k,m.get(j,k) + wti*mwt*xi[j]*xi[k]);
-					}
-				}
-			}
-		}
-		try {
-			if(verbose) {
-				System.out.println("m:\n" + m);
-				System.out.println("v:\n" + v);
-			}
-			if(minAbsDet>0) {
-				final double det = Algebra.DEFAULT.det(m);
-				if(Math.abs(det)<minAbsDet) {
-					return false;
-				}
-			}
-			final DoubleMatrix2D delta = Algebra.DEFAULT.solve(m, v);
-			if(verbose) {
-				System.out.println("delta:\n" + delta);
-			}
-			boolean sawDiff = false;
-			for(int j=0;j<dim;++j) {
-				final double wi = wts.get(j);
-				final double nwi = wi+delta.get(j,0);
-				if(Math.abs(wi-nwi)/(Math.max(1.0,Math.abs(wi)))>1.0e-6) {
-					sawDiff = true;
-				}
-				wts.set(j,nwi);
-			}
-			return sawDiff;
-		} catch (Exception ex) {
-		}
-		return false;
-	}
-	
-
 	// crummy model- but best soln at wts = 0
 	// acceptance region all inside -6<=|x|,|y|<=5
 	/**
@@ -205,7 +120,7 @@ public final class ScoreStep {
 	 * summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6),maxit=1))
 	 * summary(glm(y~x,data=p,family=binomial(link='logit'),start=c(-4,6),maxit=2))
 	 */
-	static SimpleProblem zeroSolnProblem = new SimpleProblem(
+	private static SimpleProblem zeroSolnProblem = new SimpleProblem(
 			new double[][] { 
 					{ 1, 1 },
 					{ 1, 0 },
@@ -269,9 +184,9 @@ public final class ScoreStep {
 				final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 				wts.set(0,w0);
 				wts.set(1,w1);
-				final double perplexity0 = perplexity(prob.x,prob.y,prob.wt,wts);
-				NewtonStep(prob.x,prob.y,prob.wt,wts, false, 0.0);
-				final double perplexity1 = perplexity(prob.x,prob.y,prob.wt,wts);
+				final double perplexity0 = ProblemVariations.perplexity(prob.x,prob.y,prob.wt,wts);
+				ProblemVariations.NewtonStep(prob.x,prob.y,prob.wt,wts, false, 0.0);
+				final double perplexity1 = ProblemVariations.perplexity(prob.x,prob.y,prob.wt,wts);
 				final boolean decrease = perplexity1<perplexity0;
 				final boolean increase = perplexity1>perplexity0;
 				System.out.println("" + w0 + sep + w1 + sep + perplexity0 + sep + perplexity1 + sep + decrease + sep + increase);
@@ -287,136 +202,6 @@ public final class ScoreStep {
 	
 	
 
-	private static double scoreExample(final double[][] x,
-			final boolean[] y, final int[] wt) {
-		if(x.length<1) {
-			return 0.0;
-		}
-		final int dim = x[0].length;
-		// real crude approximate boundedness check
-		final boolean[] sawAgreement = new boolean[dim];
-		final boolean[] sawDisaggree = new boolean[dim];
-		for(int i=0;i<x.length;++i) {
-			for(int j=0;j<dim;++j) {
-				if(Math.abs(x[i][j])>1.0e-8) {
-					if(y[i]==(x[i][j]>0)) {
-						sawAgreement[j] |= true;
-					} else { 
-						sawDisaggree[j] |= true;
-					}
-				}
-			}
-		}
-		for(int j=0;j<dim;++j) {
-			if(!sawAgreement[j]) {
-				return 0.0;
-			}
-			if(!sawDisaggree[j]) {
-				return 0.0;
-			}
-		}
-		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-		final double perplexity0 = perplexity(x,y,wt,wts);
-		double perplexity1 = 0.0;
-		for(int ns=0;ns<=10;++ns) {
-			final boolean sawDiff = NewtonStep(x,y,wt,wts, false, ns<=0?1.0e-3:0.0);
-			if(!sawDiff) {
-				return 0.0;
-			}
-			final double perplexityI = perplexity(x,y,wt,wts);
-			if(ns<=0) {
-				perplexity1 = perplexityI;
-			}
-			if(perplexityI>perplexity0) {
-				// don't count perplexity of things too near start (they can be rounding error)
-				boolean sawNZ = false;
-				for(int j=0;j<dim;++j) {
-					if(Math.abs(wts.get(j))>1.0e-3) {
-						sawNZ = true;
-						break;
-					}
-				}
-				if(sawNZ) {
-					return perplexity1/(perplexity0*(1.0+ns));
-				}
-			}
-		}
-		return 0.0;
-	}
-
-	private static double scoreExample2(final double[][] x,
-			final boolean[] y, final int[] wt) {
-		if(x.length<1) {
-			return 0.0;
-		}
-		final int dim = x[0].length;
-		// real crude approximate boundedness check
-		final boolean[] sawAgreement = new boolean[dim];
-		final boolean[] sawDisaggree = new boolean[dim];
-		for(int i=0;i<x.length;++i) {
-			for(int j=0;j<dim;++j) {
-				if(Math.abs(x[i][j])>1.0e-8) {
-					if(y[i]==(x[i][j]>0)) {
-						sawAgreement[j] |= true;
-					} else { 
-						sawDisaggree[j] |= true;
-					}
-				}
-			}
-		}
-		for(int j=0;j<dim;++j) {
-			if(!sawAgreement[j]) {
-				return 0.0;
-			}
-			if(!sawDisaggree[j]) {
-				return 0.0;
-			}
-		}
-		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-		final double perplexity0 = perplexity(x,y,wt,wts);
-		final boolean sawDiff = NewtonStep(x,y,wt,wts, false, 1.0e-3);
-		if(!sawDiff) {
-			return 0.0;
-		}
-		// don't count perplexity of things too near start (they can be rounding error)
-		boolean sawNZ = false;
-		for(int j=0;j<dim;++j) {
-			if(Math.abs(wts.get(j))>1.0e-3) {
-				sawNZ = true;
-				break;
-			}
-		}
-		if(!sawNZ) {
-			return 0.0;
-		}
-		final double perplexity1 = perplexity(x,y,wt,wts);
-		return perplexity1/perplexity0;
-	}
-
-	public static Set<SimpleProblem> randProbs(final int dim) {
-		final Set<SimpleProblem> found = new TreeSet<SimpleProblem>();
-		final Random rand = new Random(3253);
-		final int m = 20;
-		final double[][] x = new double[m][dim];
-		final boolean[] y = new boolean[m];
-		final int[] w = new int[m];
-		for(int rep=0;rep<10000;++rep) {
-			for(int i=0;i<m;++i) {
-				//x[i][0] = 1.0;
-				for(int j=0;j<dim;++j) {
-					x[i][j] = rand.nextGaussian();
-				}
-				y[i] = rand.nextBoolean();
-				w[i] = rand.nextInt(100) - 50;
-			}
-			final SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,w);
-			if((null!=cleanRep)&&(cleanRep.nrow>1)) {
-				found.add(cleanRep);
-			}			
-		}
-		return found;
-	}
-	
 	public static Set<SimpleProblem> searchForProblem() {
 		final Set<SimpleProblem> found = new TreeSet<SimpleProblem>();
 		final double[][] x = { 
@@ -446,7 +231,7 @@ public final class ScoreStep {
 			for(int j=0;j<ndat;++j) {
 				wt[j] = rand.nextInt(100) - 50;
 			}
-			final double score = scoreExample(x, y, wt);
+			final double score = ProblemVariations.scoreExample(x, y, wt);
 			if(score>0.0) {
 				final SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,wt);
 				if((null!=cleanRep)&&(cleanRep.nrow>1)) {
@@ -460,7 +245,7 @@ public final class ScoreStep {
 
 
 	
-	static final SimpleProblem example2D = new SimpleProblem(
+	private static final SimpleProblem example2D = new SimpleProblem(
 			new double[][] { 
 					{ 1.0,	0.0},
 					{ 1.0,	0.0},
@@ -524,13 +309,13 @@ public final class ScoreStep {
 	public static void workProblem(final SimpleProblem p) {
 		final int dim = p.dim;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
-		final double perplexity0 = perplexity(p.x,p.y,p.wt,wts);
+		final double perplexity0 = ProblemVariations.perplexity(p.x,p.y,p.wt,wts);
 		System.out.println("perplexity0: " + perplexity0);
 		for(int ns=0;ns<10;++ns) {
 			System.out.println();
-			NewtonStep(p.x,p.y,p.wt,wts, true, 0.0);
+			ProblemVariations.NewtonStep(p.x,p.y,p.wt,wts, true, 0.0);
 			System.out.println(wts);
-			final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
+			final double perplexity1 = ProblemVariations.perplexity(p.x,p.y,p.wt,wts);
 			System.out.println("perplexity" + (ns+1) + ": " + perplexity1);
 			if(perplexity1>perplexity0) {
 				System.out.println("break");
@@ -548,7 +333,7 @@ public final class ScoreStep {
 			wts.set(0,range*xi/((double)nsteps));
 			for(int yi=-nsteps;yi<=nsteps;++yi) {
 				wts.set(1,range*yi/((double)nsteps));
-				final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
+				final double perplexity1 = ProblemVariations.perplexity(p.x,p.y,p.wt,wts);
 				if((bestwts==null)||(perplexity1<best)) {
 					best = perplexity1;
 					bestwts = wts.copy();
@@ -560,151 +345,16 @@ public final class ScoreStep {
 			wts.set(i,bestwts.get(i));
 		}
 		for(int ns=0;ns<5;++ns) {
-			NewtonStep(p.x,p.y,p.wt,wts, true, 0.0);
+			ProblemVariations.NewtonStep(p.x,p.y,p.wt,wts, true, 0.0);
 			System.out.println("wt:");
 			System.out.println(wts);
-			final double perplexity1 = perplexity(p.x,p.y,p.wt,wts);
+			final double perplexity1 = ProblemVariations.perplexity(p.x,p.y,p.wt,wts);
 			System.out.println("perplexity" + (ns+1) + ": " + perplexity1);
 		}
 	}
 	
 
-	private static final class Population {
-		public SimpleProblem best = null;
-		public double bestScore = Double.NEGATIVE_INFINITY;
-		public final double[] pscore;
-		public final SimpleProblem[] population;
-		
-		public Population(final Random rand, final int psize, final SimpleProblem[] starts) {
-			pscore = new double[psize];
-			population = new SimpleProblem[psize];
-			final int nstart = starts.length;
-			final double[] startScores = new double[nstart];
-			for(int j=0;j<nstart;++j) {
-				final SimpleProblem sj = starts[j];
-				startScores[j] = scoreExample(sj.x,sj.y,sj.wt);
-				if((null==best)||(startScores[j]>bestScore)) {
-					best = sj;
-					bestScore = startScores[j];
-				}
-			}
-			for(int i=0;i<psize;++i) {
-				final int vi = rand.nextInt(nstart);
-				population[i] = starts[vi];
-				pscore[i] = startScores[vi];
-			}
-		}
-		
-		public Population(final Random rand, final Population o, final int psize) {
-			pscore = new double[psize];
-			population = new SimpleProblem[psize];
-			best = o.best;
-			bestScore = o.bestScore;
-			final int osize = o.population.length;
-			for(int i=0;i<psize;++i) {
-				final int vi = rand.nextInt(osize);
-				population[i] = o.population[vi];
-				pscore[i] = o.pscore[vi];
-			}
-		}
-		
-		public boolean show(final SimpleProblem p, final double score) {
-			if((null==best)||(score>bestScore)) {
-				best = p;
-				bestScore = score;
-				return true;
-			}
-			return false;
-		}
-	}
-	
-	private static class AnnealJob1 implements Runnable {
-		public final int id;
-		public final int psize;
-		public final Random rand;
-		public final Population shared;
-		
-		public AnnealJob1(final int id, final int psize, final Random rand, final Population shared) {
-			this.id = id;
-			this.psize = psize;
-			this.rand = rand;
-			this.shared = shared;
-		}
-		
-		private void swap(final Population p) {
-			synchronized(shared) {
-				//System.out.println("Runnable " + id + " mixing into main population " + new Date());
-				for(int oi=0;oi<psize;++oi) {
-					if(rand.nextBoolean()) {
-						final int ti = rand.nextInt(shared.population.length);
-						final SimpleProblem or = p.population[oi];
-						final double os = p.pscore[oi];
-						p.population[oi] = shared.population[ti];
-						p.pscore[oi] = shared.pscore[ti];
-						shared.population[ti] = or;
-						shared.pscore[ti] = os;
-					}
-				}
-			}
-		}
 
-		protected double score(final SimpleProblem mi) {
-			return scoreExample(mi.x,mi.y,mi.wt);
-		}
-		
-		protected int nInserts(final double score) {
-			final int nInserts = Math.max((int)Math.floor(10.0*score),1);
-			return nInserts;
-		}
-		
-		@Override
-		public void run() {
-			final Population p;
-			synchronized(shared) {
-				System.out.println("anneal Runnable " + id + " start " + new Date());
-				p = new Population(rand,shared,psize);
-			}
-			for(int step=0;step<2*psize;++step) {
-				final int di = rand.nextInt(psize);
-				final SimpleProblem donor = p.population[di];
-				final double dscore = p.pscore[di];
-				final Set<SimpleProblem> mutations = SimpleProblem.mutations(donor);
-				final SimpleProblem d2 = p.population[rand.nextInt(psize)];
-				final Set<SimpleProblem> children = SimpleProblem.breed(donor,d2,rand);
-				mutations.addAll(children);
-				boolean record = false;
-				for(final SimpleProblem mi: mutations) {
-					final double scorem = score(mi);
-					if(p.show(mi,scorem)) {
-						record = true;
-						synchronized(shared) {
-							if(shared.show(mi,scorem)) {
-								System.out.println("new record: " + p.bestScore + "\t" + p.best + "\t" + new Date());
-							}
-						}
-					}
-					final double ms = Math.max(scorem,0.5*(scorem+dscore)); // effective score (some credit from one parent)
-					final int nInserts = nInserts(ms);
-					for(int insi=0;insi<nInserts;++insi) {
-						final int vi = rand.nextInt(psize);
-						// 	number of insertions*worseodds < 1 to ensure progress
-						if((ms>p.pscore[vi])||(rand.nextDouble()>0.9)) {
-							p.population[vi] = mi;
-							p.pscore[vi] = ms;
-						}
-					}
-				}
-				// mix into shared population 
-				if(record||(step%(psize/2))==0) {
-					swap(p);
-				}
-			}
-			swap(p);
-			synchronized(shared) {
-				System.out.println("anneal Runnable " + id + " finish " + new Date());
-			}
-		}
-	}
 	
 
 	/**
@@ -712,27 +362,21 @@ public final class ScoreStep {
 	 * @throws InterruptedException 
 	 */
 	public static void main(String[] args) throws InterruptedException {
-		//System.out.println("showing problem:");
-		//showProblem(zeroSolnProblem,-6,6,-6,6);
-		//showProblem(badZeroStartProblem,-12,-2,-12,-2);
-		//final Set<SimpleProblem> starts = searchForProblem();
-		final Set<SimpleProblem> starts = randProbs(2);
-		System.out.println("start anneal");
-		final Random rand = new Random(235235);
-		final Population shared = new Population(new Random(rand.nextLong()),500000,starts.toArray(new SimpleProblem[starts.size()]));
-		{
-			final int njobs = 20;
-			final int nparallel = 6;
-			final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
-			final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
-			for(int i=0;i<njobs;++i) {
-				executor.execute(new AnnealJob1(i,100000,new Random(rand.nextLong()),shared));
-			}
-			executor.shutdown();
-			executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
-			System.out.println("done anneal1");
-		}
-		//workProblem(example2D);
-		//bruteSolve(example2D);
+		// comment/un-comment various bits to get different runs
+		
+		// graph zeroSolnProblem
+		showProblem(zeroSolnProblem,-6,6,-6,6);
+		
+		// graph badZeroStartProblem
+		showProblem(badZeroStartProblem,-12,-2,-12,-2);
+		
+		// find some more baddies
+		// can also try GSearch.main() 
+		searchForProblem();
+		
+		// show divergencen
+		workProblem(example2D);
+		// show existence of a bounded solution
+		bruteSolve2D(example2D);
 	}
 }
