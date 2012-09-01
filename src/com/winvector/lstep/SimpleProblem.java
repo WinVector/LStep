@@ -238,7 +238,7 @@ public final class SimpleProblem implements Comparable<SimpleProblem> {
 			}
 			p.y[i] = yi;
 			// x-changes
-			for(int j=1;j<p.dim;++j) {
+			for(int j=0;j<p.dim;++j) {
 				final double xij = p.x[i][j];
 				{
 					p.x[i][j] = xij + 1.0;
