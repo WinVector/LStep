@@ -74,24 +74,24 @@ public final class RunAnneal<T extends Comparable<T>> {
 				for(final T mi: mutations) {
 					final double scorem = score(mi);
 					if(scorem>0.0) {
-					if(p.show(mi,scorem)) {
-						record = true;
-						synchronized(shared) {
-							if(shared.show(mi,scorem)) {
-								System.out.println("new record: " + p.bestScore + "\t" + p.best + "\t" + new Date());
+						if(p.show(mi,scorem)) {
+							record = true;
+							synchronized(shared) {
+								if(shared.show(mi,scorem)) {
+									System.out.println("new record: " + p.bestScore + "\t" + p.best + "\t" + new Date());
+								}
 							}
 						}
-					}
-					final double ms = Math.max(scorem,0.5*(scorem+dscore)); // effective score (some credit from one parent)
-					final int nInserts = nInserts(ms);
-					for(int insi=0;insi<nInserts;++insi) {
-						final int vi = rand.nextInt(psize);
-						// 	number of insertions*worseodds < 1 to ensure progress
-						if((ms>p.pscore[vi])||(rand.nextDouble()>0.9)) {
-							p.population.set(vi,mi);
-							p.pscore[vi] = ms;
+						final double ms = Math.max(scorem,0.5*(scorem+dscore)); // effective score (some credit from one parent)
+						final int nInserts = nInserts(ms);
+						for(int insi=0;insi<nInserts;++insi) {
+							final int vi = rand.nextInt(psize);
+							// 	number of insertions*worseodds < 1 to ensure progress
+							if((ms>p.pscore[vi])||(rand.nextDouble()>0.9)) {
+								p.population.set(vi,mi);
+								p.pscore[vi] = ms;
+							}
 						}
-					}
 					}
 				}
 				// mix into shared population 
