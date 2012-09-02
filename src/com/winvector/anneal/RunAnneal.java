@@ -73,6 +73,7 @@ public final class RunAnneal<T extends Comparable<T>> {
 				boolean record = false;
 				for(final T mi: mutations) {
 					final double scorem = score(mi);
+					if(scorem>0.0) {
 					if(p.show(mi,scorem)) {
 						record = true;
 						synchronized(shared) {
@@ -90,6 +91,7 @@ public final class RunAnneal<T extends Comparable<T>> {
 							p.population.set(vi,mi);
 							p.pscore[vi] = ms;
 						}
+					}
 					}
 				}
 				// mix into shared population 
