@@ -108,20 +108,25 @@ public final class RunAnneal<T extends Comparable<T>> {
 		return new AnnealJob1(id,psize,rand);
 	}
 	
-	public static <T extends Comparable<T>> T runAnneal(final AnnealAdapter<T> pv, final Collection<T> starts) throws InterruptedException {
+	public static <T extends Comparable<T>> T runAnneal(final AnnealAdapter<T> pv, final Collection<T> starts, final int nparallel) throws InterruptedException {
 		System.out.println("start anneal");
 		final Random rand = new Random(235235);
 		final Population<T> shared = new Population<T>(pv,new Random(rand.nextLong()),500000,new ArrayList<T>(starts));
 		final RunAnneal<T> ra = new RunAnneal<T>(shared);
 		final int njobs = 20;
-		final int nparallel = 6;
-		final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
-		final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
-		for(int i=0;i<njobs;++i) {
-			executor.execute(ra.newJob(i,100000,new Random(rand.nextLong())));
+		if(nparallel>1) {
+			final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
+			final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
+			for(int i=0;i<njobs;++i) {
+				executor.execute(ra.newJob(i,100000,new Random(rand.nextLong())));
+			}
+			executor.shutdown();
+			executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
+		} else {
+			for(int i=0;i<njobs;++i) {
+				ra.newJob(i,100000,new Random(rand.nextLong())).run();
+			}
 		}
-		executor.shutdown();
-		executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);
 		System.out.println("done anneal1");
 		return shared.best;
 	}

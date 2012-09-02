@@ -12,7 +12,17 @@ import cern.colt.matrix.linalg.Algebra;
 
 import com.winvector.anneal.AnnealAdapter;
 
-public class ProblemVariations implements AnnealAdapter<SimpleProblem> {
+public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
+	
+	private static void collectProblem(final Random rand, final Set<SimpleProblem> c, final double[][] x, final boolean[] y, final int[] w) {
+		if(acceptableProblem(x,y,w)) {
+			final SimpleProblem np = SimpleProblem.cleanRep(x,y,w);
+			if(null!=np) {
+				fixQtoOneHalf(rand,np.y,np.wt);
+				c.add(np);
+			}
+		}
+	}
 	
 	@Override
 	public Set<SimpleProblem> mutations(SimpleProblem p, final Random rand) {
@@ -25,73 +35,46 @@ public class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 			// row deletion
 			{
 				p.wt[i] = 0;
-				final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-				if((null!=np)&&(np.nrow>1)) {
-					mutations.add(np);
-				}
+				collectProblem(rand,mutations,p.x,p.y,p.wt);
 			}
 			// weight changes
 			{
 				p.wt[i] = wi + 1;
-				final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-				if((null!=np)&&(np.nrow>1)) {
-					mutations.add(np);
-				}
+				collectProblem(rand,mutations,p.x,p.y,p.wt);
 			}
 			{
 				p.wt[i] = wi - 1;
-				final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-				if((null!=np)&&(np.nrow>1)) {
-					mutations.add(np);
-				}
+				collectProblem(rand,mutations,p.x,p.y,p.wt);
 			}
 			p.wt[i] = wi;
 			// y-flip
 			{
 				p.y[i] = !yi;
-				final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-				if((null!=np)&&(np.nrow>1)) {
-					mutations.add(np);
-				}
+				collectProblem(rand,mutations,p.x,p.y,p.wt);
 			}
 			p.y[i] = yi;
 			// x-changes
-			for(int j=0;j<p.dim;++j) {
+			for(int j=1;j<p.dim;++j) {
 				final double xij = p.x[i][j];
 				{
 					p.x[i][j] = xij + 1.0;
-					final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-					if((null!=np)&&(np.nrow>1)) {
-						mutations.add(np);
-					}
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
 				}
 				{
 					p.x[i][j] = xij - 1.0;
-					final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-					if((null!=np)&&(np.nrow>1)) {
-						mutations.add(np);
-					}
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
 				}
 				{
 					p.x[i][j] = -xij;
-					final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-					if((null!=np)&&(np.nrow>1)) {
-						mutations.add(np);
-					}
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
 				}
 				{
 					p.x[i][j] = 1.1*xij;
-					final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-					if((null!=np)&&(np.nrow>1)) {
-						mutations.add(np);
-					}
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
 				}
 				{
 					p.x[i][j] = 0.9*xij;
-					final SimpleProblem np = SimpleProblem.cleanRep(p.x,p.y,p.wt);
-					if((null!=np)&&(np.nrow>1)) {
-						mutations.add(np);
-					}
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
 				}
 				p.x[i][j] = xij;
 			}
@@ -129,46 +112,63 @@ public class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 			for(int i=0;i<m;++i) {
 				w[i] = rand.nextBoolean()?ow[i]:0;
 			}
-			final SimpleProblem np = SimpleProblem.cleanRep(x,y,w);
-			if((null!=np)&&(np.nrow>1)&&(np.nrow<=20)) {
-				children.add(np);
-			}
+			collectProblem(rand,children,x,y,w);
 		}
 		return children;
 	}
 	
-	public static double scoreExample(final double[][] x,
+	public static boolean acceptableProblem(final double[][] x,
 			final boolean[] y, final int[] wt) {
-		if(x.length<1) {
-			return 0.0;
+		if((null==x)||(x.length<=1)||(x[0].length<1)) {
+			return false;
 		}
 		final int dim = x[0].length;
 		// real crude approximate boundedness check
 		final boolean[] sawAgreement = new boolean[dim];
 		final boolean[] sawDisaggree = new boolean[dim];
+		int nNZRow = 0;
 		for(int i=0;i<x.length;++i) {
-			for(int j=0;j<dim;++j) {
-				if(Math.abs(x[i][j])>1.0e-8) {
-					if(y[i]==(x[i][j]>0)) {
-						sawAgreement[j] |= true;
-					} else { 
-						sawDisaggree[j] |= true;
+			final int wti = (null==wt)?1:wt[i];
+			if(wti>0) {
+				++nNZRow;
+				for(int j=0;j<dim;++j) {
+					if(Math.abs(x[i][j])>1.0e-8) {
+						if(y[i]==(x[i][j]>0)) {
+							sawAgreement[j] |= true;
+						} else { 
+							sawDisaggree[j] |= true;
+						}
 					}
 				}
 			}
 		}
+		if(nNZRow<=1) {
+			return false;
+		}
 		for(int j=0;j<dim;++j) {
 			if(!sawAgreement[j]) {
-				return 0.0;
+				return false;
 			}
 			if(!sawDisaggree[j]) {
-				return 0.0;
+				return false;
 			}
 		}
+		return true;
+	}
+	
+	
+	public static double scoreExample(final double[][] x,
+			final boolean[] y, final int[] wt) {
+		if(!acceptableProblem(x,y,wt)) {
+			return 0.0;
+		}
+		final int dim = x[0].length;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		final double perplexity0 = perplexity(x,y,wt,wts);
 		double perplexity1 = 0.0;
-		for(int ns=0;ns<=10;++ns) {
+		double delta0 = 0.0;
+		final int maxNS = 10;
+		for(int ns=0;ns<maxNS;++ns) {
 			final boolean sawDiff = NewtonStep(x,y,wt,wts, false, ns<=0?1.0e-3:0.0);
 			if(!sawDiff) {
 				return 0.0;
@@ -176,27 +176,59 @@ public class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 			final double perplexityI = perplexity(x,y,wt,wts);
 			if(ns<=0) {
 				perplexity1 = perplexityI;
+				delta0 = 0.0;
+				for(int j=0;j<dim;++j) {
+					delta0 += wts.get(j)*wts.get(j);
+				}
+				delta0 = Math.sqrt(delta0);
+				if(delta0<=1.0e-5) {
+					return 0.0;
+				}
 			}
 			if(perplexityI>perplexity0) {
-				// don't count perplexity of things too near start (they can be rounding error)
-				boolean sawNZ = false;
-				for(int j=0;j<dim;++j) {
-					if(Math.abs(wts.get(j))>1.0e-3) {
-						sawNZ = true;
-						break;
-					}
-				}
-				if(sawNZ) {
-					return perplexity1/(perplexity0*(1.0+ns));
-				}
+				return perplexity1/(perplexity0*(1.0+ns));
 			}
 		}
-		return 0.0;
+		return perplexity1/(perplexity0*(5.0+maxNS)); 
 	}
 	
 	@Override
 	public double scoreExample(final SimpleProblem p) {
 		return scoreExample(p.x,p.y,p.wt);
+	}
+
+	/**
+	 * assumes there are plus and minus examples with non-zero weights (implied by acceptable problem is true)
+	 * @param rand
+	 * @param y
+	 * @param w
+	 */
+	public static void fixQtoOneHalf(final Random rand, final boolean[] y, final int[] w) { 
+		// get weights to 1/2 without changing zeronoess/non-zeroness of weights
+		final int m = y.length;
+		long wPlus = 0;
+		long wMinus = 0;
+		for(int i=0;i<m;++i) {
+			if(y[i]) {
+				wPlus += w[i];
+			} else {
+				wMinus += w[i];
+			}
+		}
+		while(wPlus!=wMinus) {
+			final int i = rand.nextInt(m);
+			if(w[i]>0) {
+				final int delta = y[i]==(wMinus>wPlus)?1:-1;
+				if(w[i]+delta>0) {
+					w[i] += delta;
+					if(y[i]) {
+						wPlus += delta;
+					} else {
+						wMinus += delta;
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -206,7 +238,7 @@ public class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 	 * @param verbose print a lot
 	 * @param minAbsDet TODO
 	 * @param update control if step is taken and wts are updated (inefficient way to compute score, but useful for debugging)
-	 * @return true if steped
+	 * @return true if stepped
 	 */
 	public static final boolean NewtonStep(final double[][] x, final boolean[] y, final int[] wt, final DoubleMatrix1D wts, final boolean verbose, double minAbsDet) {
 		final int nDat = x.length;

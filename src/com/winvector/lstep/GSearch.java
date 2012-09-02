@@ -13,9 +13,10 @@ public class GSearch {
 	 * @throws InterruptedException 
 	 */
 	public static void main(String[] args) throws InterruptedException {
-		final Set<SimpleProblem> starts = randProbs(2);
+		final Set<SimpleProblem> starts = randProbs(3);
+		System.out.println("have " + starts.size() + " starts");
 		final AnnealAdapter<SimpleProblem> pv = new ProblemVariations();
-		final SimpleProblem found = RunAnneal.runAnneal(pv, starts);
+		final SimpleProblem found = RunAnneal.runAnneal(pv, starts,6);
 		System.out.println("found: " + found);
 	}
 
@@ -27,13 +28,20 @@ public class GSearch {
 		final boolean[] y = new boolean[m];
 		final int[] w = new int[m];
 		for(int rep=0;rep<10000;++rep) {
-			for(int i=0;i<m;++i) {
-				//x[i][0] = 1.0;
-				for(int j=0;j<dim;++j) {
-					x[i][j] = rand.nextGaussian();
+			boolean accept = false;
+			while(!accept) {
+				for(int i=0;i<m;++i) {
+					x[i][0] = 1.0;
+					for(int j=1;j<dim;++j) {
+						x[i][j] = rand.nextGaussian();
+					}
+					y[i] = rand.nextBoolean();
+					w[i] = Math.max(0,rand.nextInt(100) - 50);
 				}
-				y[i] = rand.nextBoolean();
-				w[i] = rand.nextInt(100) - 50;
+				if(ProblemVariations.acceptableProblem(x, y, w)) {
+					ProblemVariations.fixQtoOneHalf(rand, y, w);
+					accept = true;
+				}
 			}
 			final SimpleProblem cleanRep = SimpleProblem.cleanRep(x,y,w);
 			if((null!=cleanRep)&&(cleanRep.nrow>1)) {
