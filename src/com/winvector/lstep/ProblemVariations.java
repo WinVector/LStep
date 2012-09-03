@@ -19,7 +19,9 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 			final SimpleProblem np = SimpleProblem.cleanRep(x,y,w);
 			if(null!=np) {
 				fixQtoOneHalf(rand,np.y,np.wt);
-				c.add(np);
+				if(acceptableProblem(np.x,np.y,np.wt)) {
+					c.add(np);
+				}
 			}
 		}
 	}
@@ -130,8 +132,14 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 		for(int i=0;i<x.length;++i) {
 			final int wti = (null==wt)?1:wt[i];
 			if(wti>0) {
+				if(wti>100) {
+					return false;
+				}
 				++nNZRow;
 				for(int j=0;j<dim;++j) {
+					if(Math.abs(x[i][j])>100.0) {
+						return false;
+					}
 					if(Math.abs(x[i][j])>1.0e-8) {
 						if(y[i]==(x[i][j]>0)) {
 							sawAgreement[j] |= true;
