@@ -62,36 +62,43 @@ public final class RunAnneal<T extends Comparable<T>> {
 				System.out.println("anneal Runnable " + id + " start " + new Date());
 				p = new Population<T>(rand,shared,psize);
 			}
-			for(int step=0;step<2*psize;++step) {
-				final int di = rand.nextInt(psize);
-				final T donor = p.population.get(di);
-				final double dscore = p.pscore[di];
+			T donor = p.population.get(rand.nextInt(psize));
+			for(int step=0;step<10*psize;++step) {
 				final Set<T> mutations = shared.pv.mutations(donor,rand);
 				final T d2 = p.population.get(rand.nextInt(psize));
 				final Set<T> children = shared.pv.breed(donor,d2,rand);
 				mutations.addAll(children);
 				boolean record = false;
+				final ArrayList<T> goodC = new ArrayList<T>(mutations.size());
 				for(final T mi: mutations) {
 					final double scorem = score(mi);
 					if(scorem>0.0) {
+						goodC.add(mi);
 						if(p.show(mi,scorem)) {
 							record = true;
+							donor = mi;
 							synchronized(shared) {
 								if(shared.show(mi,scorem)) {
 									System.out.println("new record: " + p.bestScore + "\t" + p.best + "\t" + new Date());
 								}
 							}
 						}
-						final double ms = Math.max(scorem,0.5*(scorem+dscore)); // effective score (some credit from one parent)
-						final int nInserts = nInserts(ms);
+						final int nInserts = nInserts(scorem);
 						for(int insi=0;insi<nInserts;++insi) {
 							final int vi = rand.nextInt(psize);
 							// 	number of insertions*worseodds < 1 to ensure progress
-							if((ms>p.pscore[vi])||(rand.nextDouble()>0.9)) {
+							if((scorem>p.pscore[vi])||(rand.nextDouble()>0.9)) {
 								p.population.set(vi,mi);
-								p.pscore[vi] = ms;
+								p.pscore[vi] = scorem;
 							}
 						}
+					}
+				}
+				if(step%1000==0) {
+					if(goodC.size()>0) {
+						donor = goodC.get(rand.nextInt(goodC.size()));
+					} else {
+						donor = p.population.get(rand.nextInt(psize));
 					}
 				}
 				// mix into shared population 
