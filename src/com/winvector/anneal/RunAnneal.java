@@ -68,11 +68,18 @@ public final class RunAnneal<T extends Comparable<T>> {
 				final T d2 = p.population.get(rand.nextInt(psize));
 				final Set<T> children = shared.pv.breed(donor,d2,rand);
 				mutations.addAll(children);
+				mutations.add(donor);
 				boolean record = false;
+				T bestC = null;
+				double bestCscore = 0.0;				
 				final ArrayList<T> goodC = new ArrayList<T>(mutations.size());
 				for(final T mi: mutations) {
 					final double scorem = score(mi);
 					if(scorem>0.0) {
+						if((null==bestC)||(scorem>bestCscore)) {
+							bestC = mi;
+							bestCscore = scorem;
+						}
 						goodC.add(mi);
 						if(p.show(mi,scorem)) {
 							record = true;
@@ -93,6 +100,14 @@ public final class RunAnneal<T extends Comparable<T>> {
 							}
 						}
 					}
+				}
+				if((null!=p.best)&&(p.bestScore>0)) {
+					final int vi = rand.nextInt(psize);
+					p.population.set(vi,p.best);
+					p.pscore[vi] = p.bestScore;
+				}
+				if(null!=bestC) {
+					donor = bestC;
 				}
 				if(step%1000==0) {
 					if(goodC.size()>0) {
