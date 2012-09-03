@@ -68,7 +68,6 @@ public final class RunAnneal<T extends Comparable<T>> {
 				final T d2 = p.population.get(rand.nextInt(psize));
 				final Set<T> children = shared.pv.breed(donor,d2,rand);
 				mutations.addAll(children);
-				//mutations.add(donor);
 				boolean record = false;
 				T bestC = null;
 				double bestCscore = 0.0;				
@@ -89,30 +88,34 @@ public final class RunAnneal<T extends Comparable<T>> {
 								}
 							}
 						}
-						final int nInserts = nInserts(scorem);
-						for(int insi=0;insi<nInserts;++insi) {
-							final int vi = rand.nextInt(psize);
-							// 	number of insertions*worseodds < 1 to ensure progress
-							if((scorem>p.pscore[vi])||(rand.nextDouble()>0.9)) {
-								p.population.set(vi,mi);
-								p.pscore[vi] = scorem;
-							}
+					}
+				}
+				boolean stepped = false;
+				if(null!=bestC) {
+					if(bestCscore>score(donor)) {
+						donor = bestC;	
+						stepped = true;
+					}
+					final int nInserts = nInserts(bestCscore);
+					for(int insi=0;insi<nInserts;++insi) {
+						final int vi = rand.nextInt(psize);
+						// 	number of insertions*worseodds < 1 to ensure progress
+						if((bestCscore>p.pscore[vi])||(rand.nextDouble()>0.9)) {
+							p.population.set(vi,bestC);
+							p.pscore[vi] = bestCscore;
 						}
 					}
 				}
-				if((null!=p.best)&&(p.bestScore>0)) {
-					final int vi = rand.nextInt(psize);
-					p.population.set(vi,p.best);
-					p.pscore[vi] = p.bestScore;
-				}
-				if(null!=bestC) {
-					donor = bestC;
-				}
-				if(step%1000==0) {
+				if((!stepped)&&(step%10==0)) {
 					if((goodC.size()>0)&&(rand.nextBoolean())) {
 						donor = goodC.get(rand.nextInt(goodC.size()));
 					} else {
 						donor = p.population.get(rand.nextInt(psize));
+					}
+					if((null!=p.best)&&(p.bestScore>0)) {
+						final int vi = rand.nextInt(psize);
+						p.population.set(vi,p.best);
+						p.pscore[vi] = p.bestScore;
 					}
 				}
 				// mix into shared population 

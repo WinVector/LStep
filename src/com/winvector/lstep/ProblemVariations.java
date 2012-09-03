@@ -34,18 +34,9 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 		for(int i=0;i<m;++i) {
 			final int wi = p.wt[i];
 			final boolean yi = p.y[i];
-			// row deletion
-			{
-				p.wt[i] = 0;
-				collectProblem(rand,mutations,p.x,p.y,p.wt);
-			}
 			// weight changes
-			{
-				p.wt[i] = wi + 1;
-				collectProblem(rand,mutations,p.x,p.y,p.wt);
-			}
-			{
-				p.wt[i] = wi - 1;
+			for(int v=0;v<=100;++v) {
+				p.wt[i] = v;
 				collectProblem(rand,mutations,p.x,p.y,p.wt);
 			}
 			p.wt[i] = wi;
@@ -78,13 +69,38 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 					p.x[i][j] = 0.9*xij;
 					collectProblem(rand,mutations,p.x,p.y,p.wt);
 				}
+				// Gibbs like line sweep
+				for(int v=-100;v<=100;v+=1) {
+					p.x[i][j] = v;
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
+				}
 				p.x[i][j] = xij;
 			}
 			// make sure all restored
 			p.wt[i] = wi;
 			p.y[i] = yi;
 		}
+		// subsets
+		addSubsets(mutations,p.x,p.y,p.wt,rand);
+		// scramble y's (destructive to p)
+		for(int s=0;s<100;++s) {
+			for(int i=0;i<m;++i) {
+				p.y[i] = rand.nextBoolean();
+				collectProblem(rand,mutations,p.x,p.y,p.wt);
+			}
+		}
 		return mutations;
+	}
+	
+	private static void addSubsets(final Set<SimpleProblem> c, final double[][] x, final boolean[] y, final int[] ow, final Random rand) {
+		final int m = x.length;
+		final int[] w = new int[m];
+		for(int rep=0;rep<100;++rep) {
+			for(int i=0;i<m;++i) {
+				w[i] = rand.nextBoolean()?ow[i]:0;
+			}
+			collectProblem(rand,c,x,y,w);
+		}		
 	}
 	
 	@Override
@@ -109,13 +125,7 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 			y[p0.nrow+i] = p1.y[i];
 			ow[p0.nrow+i] = p1.wt[i];
 		}
-		final int[] w = new int[m];
-		for(int rep=0;rep<10;++rep) {
-			for(int i=0;i<m;++i) {
-				w[i] = rand.nextBoolean()?ow[i]:0;
-			}
-			collectProblem(rand,children,x,y,w);
-		}
+		addSubsets(children,x,y,ow,rand);
 		return children;
 	}
 	
