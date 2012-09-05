@@ -50,10 +50,6 @@ public final class RunAnneal<T extends Comparable<T>> {
 			return shared.pv.scoreExample(mi);
 		}
 		
-		protected int nInserts(final double score) {
-			final int nInserts = Math.max((int)Math.floor(10.0*score),1);
-			return nInserts;
-		}
 		
 		@Override
 		public void run() {
@@ -62,65 +58,89 @@ public final class RunAnneal<T extends Comparable<T>> {
 				System.out.println("anneal Runnable " + id + " start " + new Date());
 				p = new Population<T>(rand,shared,psize);
 			}
-			T donor = p.population.get(rand.nextInt(psize));
-			for(int step=0;step<10*psize;++step) {
+			T donor = null;
+			double dscore = 0.0;
+			{
+				final int dIndex = rand.nextInt(psize);
+				donor = p.population.get(dIndex);
+				dscore = p.pscore[dIndex];
+			}
+			final int totstep = 10*psize;
+			double temperature = 1.0;
+			for(int step=0;step<totstep;++step) {
 				final Set<T> mutations = shared.pv.mutations(donor,rand);
-				final T d2 = p.population.get(rand.nextInt(psize));
-				final Set<T> children = shared.pv.breed(donor,d2,rand);
-				mutations.addAll(children);
-				boolean record = false;
-				T bestC = null;
-				double bestCscore = 0.0;				
+				{
+					final T d2 = p.population.get(rand.nextInt(psize));
+					final Set<T> children = shared.pv.breed(donor,d2,rand);
+					mutations.addAll(children);
+					mutations.add(d2);
+				}
 				final ArrayList<T> goodC = new ArrayList<T>(mutations.size());
+				final ArrayList<Double> goodS = new ArrayList<Double>(mutations.size());
+				int ntook = 0;
 				for(final T mi: mutations) {
-					final double scorem = score(mi);
-					if(scorem>0.0) {
-						if((null==bestC)||(scorem>bestCscore)) {
-							bestC = mi;
-							bestCscore = scorem;
-						}
-						goodC.add(mi);
-						if(p.show(mi,scorem)) {
-							record = true;
-							synchronized(shared) {
-								if(shared.show(mi,scorem)) {
-									System.out.println("new record job " + id + ": "+ p.bestScore + "\t" + p.best + "\t" + new Date());
+					if(mi.compareTo(donor)!=0) {
+						final double scorem = score(mi);
+						if(scorem>0.0) {
+							if(p.show(mi,scorem)) {
+								synchronized(shared) {
+									System.out.println("new job record, job" + id + ": "+ p.bestScore + "\t" + p.best + "\t" + new Date());
+									if(shared.show(mi,scorem)) {
+										System.out.println("new global record, job " + id + ": "+ p.bestScore + "\t" + p.best + "\t" + new Date());
+									}
+								}
+							}
+							goodC.add(mi);
+							goodS.add(scorem);
+							final int vi = rand.nextInt(psize);
+							if(mi.compareTo(p.population.get(vi))!=0) {
+								final double pTrans = Math.min(1,Math.exp((scorem-p.pscore[vi])/temperature));
+								if((mi.compareTo(p.population.get(vi))!=0)&&(rand.nextDouble()<=pTrans)) {
+									p.population.set(vi,mi);
+									p.pscore[vi] = scorem;
+									++ntook;
 								}
 							}
 						}
 					}
 				}
-				boolean stepped = false;
-				if(null!=bestC) {
-					if(bestCscore>score(donor)) {
-						donor = bestC;	
-						stepped = true;
+				if(!goodC.isEmpty()) {
+					final int nNeighbor = goodC.size();
+					final double[] odds = new double[nNeighbor];
+					double totodds = 0.0;
+					for(int i=0;i<nNeighbor;++i) {
+						final double oi = Math.min(1,Math.exp((goodS.get(i)-dscore)/temperature));
+						odds[i] = oi;
+						totodds += oi;
 					}
-					final int nInserts = nInserts(bestCscore);
-					for(int insi=0;insi<nInserts;++insi) {
-						final int vi = rand.nextInt(psize);
-						// 	number of insertions*worseodds < 1 to ensure progress
-						if((bestCscore>p.pscore[vi])||(rand.nextDouble()>0.9)) {
-							p.population.set(vi,bestC);
-							p.pscore[vi] = bestCscore;
-						}
+					final double pick = rand.nextDouble()*totodds;
+					double sumpick = 0.0;
+					int i = 0;
+					while((i<nNeighbor-1)&&(sumpick+odds[i]<pick)) {
+						sumpick +=  odds[i];
+						++i;
 					}
+					if(donor.compareTo(goodC.get(i))!=0) {
+						donor = goodC.get(i);
+						dscore = goodS.get(i);
+						++ntook;
+					} 
+				} else {
+					final int dIndex = rand.nextInt(psize);
+					donor = p.population.get(dIndex);
+					dscore = p.pscore[dIndex];
 				}
-				if((!stepped)&&(step%10==0)) {
-					if((goodC.size()>0)&&(rand.nextBoolean())) {
-						donor = goodC.get(rand.nextInt(goodC.size()));
-					} else {
-						donor = p.population.get(rand.nextInt(psize));
-					}
-					if((null!=p.best)&&(p.bestScore>0)) {
-						final int vi = rand.nextInt(psize);
-						p.population.set(vi,p.best);
-						p.pscore[vi] = p.bestScore;
-					}
+				if(ntook<=0) {
+					temperature *= 1.1;
+				} else {
+					temperature *= 0.98;
 				}
 				// mix into shared population 
-				if(record||(step%(psize/2))==0) {
+				if(step%(psize/2)==0) {
 					swap(p);
+					synchronized(shared) {
+						System.out.println(" job " + id + ": temperature " + temperature + "\t" + new Date());
+					}
 				}
 			}
 			swap(p);
@@ -128,8 +148,10 @@ public final class RunAnneal<T extends Comparable<T>> {
 				System.out.println("anneal Runnable " + id + " finish " + new Date());
 			}
 		}
+
 	}
-	
+
+
 	private AnnealJob1 newJob(final int id, final int psize, final Random rand) {
 		return new AnnealJob1(id,psize,rand);
 	}
@@ -137,14 +159,14 @@ public final class RunAnneal<T extends Comparable<T>> {
 	public static <T extends Comparable<T>> T runAnneal(final AnnealAdapter<T> pv, final Collection<T> starts, final int nparallel) throws InterruptedException {
 		System.out.println("start anneal");
 		final Random rand = new Random(235235);
-		final Population<T> shared = new Population<T>(pv,new Random(rand.nextLong()),500000,new ArrayList<T>(starts));
+		final Population<T> shared = new Population<T>(pv,new Random(rand.nextLong()),50000,new ArrayList<T>(starts));
 		final RunAnneal<T> ra = new RunAnneal<T>(shared);
 		final int njobs = 20;
 		if(nparallel>1) {
 			final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(njobs+1);
 			final ThreadPoolExecutor executor = new ThreadPoolExecutor(nparallel,nparallel,100,TimeUnit.SECONDS,queue);
 			for(int i=0;i<njobs;++i) {
-				executor.execute(ra.newJob(i,100000,new Random(rand.nextLong())));
+				executor.execute(ra.newJob(i,1000,new Random(rand.nextLong())));
 			}
 			executor.shutdown();
 			executor.awaitTermination(Long.MAX_VALUE,TimeUnit.SECONDS);

@@ -13,7 +13,7 @@ public class GSearch {
 	 * @throws InterruptedException 
 	 */
 	public static void main(String[] args) throws InterruptedException {
-		final Set<SimpleProblem> starts = randProbs(3);
+		final Set<SimpleProblem> starts = randProbs(5);
 		System.out.println("have " + starts.size() + " starts");
 		final AnnealAdapter<SimpleProblem> pv = new ProblemVariations();
 		final SimpleProblem found = RunAnneal.runAnneal(pv, starts,6);
