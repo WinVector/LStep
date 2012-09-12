@@ -58,27 +58,27 @@ public final class RunAnneal<T extends Comparable<T>> {
 				System.out.println("anneal Runnable " + id + " start " + new Date());
 				p = new Population<T>(rand,shared,psize);
 			}
-			T donor = null;
-			double dscore = 0.0;
+			T state = null;
+			double stateScore = 0.0;
 			{
 				final int dIndex = rand.nextInt(psize);
-				donor = p.population.get(dIndex);
-				dscore = p.pscore[dIndex];
+				state = p.population.get(dIndex);
+				stateScore = p.pscore[dIndex];
 			}
 			final int totstep = 10*psize;
 			double temperature = 1.0;
 			for(int step=0;step<totstep;++step) {
-				final Set<T> mutations = shared.pv.mutations(donor,rand);
+				final Set<T> mutations = shared.pv.mutations(state,rand);
 				{
 					final T d2 = p.population.get(rand.nextInt(psize));
-					final Set<T> children = shared.pv.breed(donor,d2,rand);
+					final Set<T> children = shared.pv.breed(state,d2,rand);
 					mutations.addAll(children);
 					mutations.add(d2);
 				}
 				final ArrayList<T> goodC = new ArrayList<T>(mutations.size());
 				final ArrayList<Double> goodS = new ArrayList<Double>(mutations.size());
 				for(final T mi: mutations) {
-					if(mi.compareTo(donor)!=0) {
+					if(mi.compareTo(state)!=0) {
 						final double scorem = score(mi);
 						if(scorem>0.0) {
 							if(p.show(mi,scorem)) {
@@ -108,31 +108,36 @@ public final class RunAnneal<T extends Comparable<T>> {
 					final double[] odds = new double[nNeighbor];
 					double totodds = 0.0;
 					for(int i=0;i<nNeighbor;++i) {
-						final double oi = Math.min(1,Math.exp((goodS.get(i)-dscore)/temperature));
+						final double oi = Math.min(1,Math.exp((goodS.get(i)-stateScore)/temperature));
 						odds[i] = oi;
 						totodds += oi;
 					}
-					final double pick = rand.nextDouble()*totodds;
-					double sumpick = 0.0;
-					int i = 0;
-					while((i<nNeighbor-1)&&(sumpick+odds[i]<pick)) {
-						sumpick +=  odds[i];
-						++i;
+					final double pickV = rand.nextDouble()*Math.max(1.0,totodds);
+					int picked = -1;
+					{
+						double sumpick = 0.0;
+						for(int i=0;i<nNeighbor;++i) {
+							sumpick += odds[i];
+							if(sumpick>=pickV) {
+								picked = i;
+								break;
+							}
+						}
 					}
-					if(donor.compareTo(goodC.get(i))!=0) {
-						donor = goodC.get(i);
-						dscore = goodS.get(i);
+					if((picked>=0)&(state.compareTo(goodC.get(picked))!=0)) {
+						state = goodC.get(picked);
+						stateScore = goodS.get(picked);
 						moved = true;
 					} 
 				} else {
 					final int dIndex = rand.nextInt(psize);
-					donor = p.population.get(dIndex);
-					dscore = p.pscore[dIndex];
+					state = p.population.get(dIndex);
+					stateScore = p.pscore[dIndex];
 				}
 				if(!moved) {
 					temperature = Math.min(10.0,1.1*temperature);
 				} else {
-					temperature = Math.max(1.e-3,0.98*temperature);
+					temperature = Math.max(1.e-5,0.98*temperature);
 				}
 				// mix into shared population 
 				if(step%(psize/2)==0) {
