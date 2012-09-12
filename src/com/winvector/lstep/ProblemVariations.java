@@ -39,7 +39,16 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 				p.wt[i] = v;
 				collectProblem(rand,mutations,p.x,p.y,p.wt);
 			}
-			p.wt[i] = wi;
+			for(int j=0;j<m;++j) {
+				if(i!=j) {
+					final int wj = p.wt[j];
+					p.wt[i] = wi + 1;
+					p.wt[j] = wj - 1;
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
+					p.wt[i] = wi;
+					p.wt[j] = wj;
+				}
+			}
 			// y-flip
 			{
 				p.y[i] = !yi;
@@ -67,6 +76,10 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 				}
 				{
 					p.x[i][j] = 0.9*xij;
+					collectProblem(rand,mutations,p.x,p.y,p.wt);
+				}
+				for(int k=0;k<10;++k) {
+					p.x[i][j] += rand.nextGaussian();
 					collectProblem(rand,mutations,p.x,p.y,p.wt);
 				}
 				// Gibbs like line sweep
@@ -183,31 +196,23 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 		final int dim = x[0].length;
 		final DoubleMatrix1D wts = new DenseDoubleMatrix1D(dim);
 		final double perplexity0 = perplexity(x,y,wt,wts);
-		double perplexity1 = 0.0;
-		double delta0 = 0.0;
-		final int maxNS = 10;
-		for(int ns=0;ns<maxNS;++ns) {
-			final boolean sawDiff = NewtonStep(x,y,wt,wts, false, ns<=0?1.0e-3:0.0);
-			if(!sawDiff) {
-				return 0.0;
-			}
-			final double perplexityI = perplexity(x,y,wt,wts);
-			if(ns<=0) {
-				perplexity1 = perplexityI;
-				delta0 = 0.0;
-				for(int j=0;j<dim;++j) {
-					delta0 += wts.get(j)*wts.get(j);
-				}
-				delta0 = Math.sqrt(delta0);
-				if(delta0<=1.0e-5) {
-					return 0.0;
-				}
-			}
-			if(perplexityI>perplexity0) {
-				return perplexity1/(perplexity0*(1.0+ns));
-			}
+		final boolean sawDiff = NewtonStep(x,y,wt,wts, false, 1.0e-3);
+		if(!sawDiff) {
+			return 0.0;
 		}
-		return perplexity1/(perplexity0*(5.0+maxNS)); 
+		double delta0 = 0.0;
+		for(int j=0;j<dim;++j) {
+			delta0 += wts.get(j)*wts.get(j);
+		}
+		if(delta0<=1.0e-8) {
+			return 0.0;
+		}
+		final double perplexity1 = perplexity(x,y,wt,wts);
+		if(perplexity1>perplexity0) {
+			return (perplexity1/perplexity0)*1000.0;  
+		} else {
+			return 1.0/(1.01-perplexity1/perplexity0);
+		}
 	}
 	
 	@Override

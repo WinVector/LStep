@@ -77,7 +77,6 @@ public final class RunAnneal<T extends Comparable<T>> {
 				}
 				final ArrayList<T> goodC = new ArrayList<T>(mutations.size());
 				final ArrayList<Double> goodS = new ArrayList<Double>(mutations.size());
-				int ntook = 0;
 				for(final T mi: mutations) {
 					if(mi.compareTo(donor)!=0) {
 						final double scorem = score(mi);
@@ -98,12 +97,12 @@ public final class RunAnneal<T extends Comparable<T>> {
 								if((mi.compareTo(p.population.get(vi))!=0)&&(rand.nextDouble()<=pTrans)) {
 									p.population.set(vi,mi);
 									p.pscore[vi] = scorem;
-									++ntook;
 								}
 							}
 						}
 					}
 				}
+				boolean moved = false;
 				if(!goodC.isEmpty()) {
 					final int nNeighbor = goodC.size();
 					final double[] odds = new double[nNeighbor];
@@ -123,17 +122,17 @@ public final class RunAnneal<T extends Comparable<T>> {
 					if(donor.compareTo(goodC.get(i))!=0) {
 						donor = goodC.get(i);
 						dscore = goodS.get(i);
-						++ntook;
+						moved = true;
 					} 
 				} else {
 					final int dIndex = rand.nextInt(psize);
 					donor = p.population.get(dIndex);
 					dscore = p.pscore[dIndex];
 				}
-				if(ntook<=0) {
-					temperature *= 1.1;
+				if(!moved) {
+					temperature = Math.min(10.0,1.1*temperature);
 				} else {
-					temperature *= 0.98;
+					temperature = Math.max(1.e-3,0.98*temperature);
 				}
 				// mix into shared population 
 				if(step%(psize/2)==0) {
