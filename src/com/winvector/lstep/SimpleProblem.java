@@ -153,35 +153,37 @@ public final class SimpleProblem implements Comparable<SimpleProblem> {
 				return -1;
 			}
 		}
-		final int dim = x[0].length;
-		if(dim!=o.x[0].length) {
-			if(dim>=o.x[0].length) {
-				return 1;
-			} else {
-				return -1;
-			}
-		}
-		for(int i=0;i<m;++i) {
-			if(y[i]!=o.y[i]) {
-				if(y[i]) {
+		if(m>0) {
+			final int dim = x[0].length;
+			if(dim!=o.x[0].length) {
+				if(dim>=o.x[0].length) {
 					return 1;
 				} else {
 					return -1;
 				}
 			}
-			if(wt[i]!=o.wt[i]) {
-				if(wt[i]>=o.wt[i]) {
-					return 1;
-				} else {
-					return -1;
-				}
-			}
-			for(int j=0;j<dim;++j) {
-				if(Math.abs(x[i][j]-o.x[i][j])>1.0e-8) {
-					if(x[i][j]>=o.x[i][j]) {
+			for(int i=0;i<m;++i) {
+				if(y[i]!=o.y[i]) {
+					if(y[i]) {
 						return 1;
 					} else {
 						return -1;
+					}
+				}
+				if(wt[i]!=o.wt[i]) {
+					if(wt[i]>=o.wt[i]) {
+						return 1;
+					} else {
+						return -1;
+					}
+				}
+				for(int j=0;j<dim;++j) {
+					if(Math.abs(x[i][j]-o.x[i][j])>1.0e-8) {
+						if(x[i][j]>=o.x[i][j]) {
+							return 1;
+						} else {
+							return -1;
+						}
 					}
 				}
 			}
