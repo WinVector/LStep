@@ -289,12 +289,12 @@ public final class ProblemVariations implements AnnealAdapter<SimpleProblem> {
 				System.out.println("v:\n" + v);
 			}
 			if(minAbsDet>0) {
-				final double det = Algebra.DEFAULT.det(m);
+				final double det = Algebra.ZERO.det(m);
 				if(Math.abs(det)<minAbsDet) {
 					return false;
 				}
 			}
-			final DoubleMatrix2D delta = Algebra.DEFAULT.solve(m, v);
+			final DoubleMatrix2D delta = Algebra.ZERO.solve(m, v);
 			if(verbose) {
 				System.out.println("delta:\n" + delta);
 			}
